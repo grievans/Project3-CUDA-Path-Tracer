@@ -58,14 +58,16 @@ __host__ __device__ void scatterRay(
 
 
     // TODO figure out how I want to structure the different states
+
+    /*if (pathSegment.remainingBounces <= 0) {
+        pathSegment.color = glm::vec3(0.f);
+        return;
+    }*/
+
     if (m.emittance > 0.0f) {
+        //pathSegment.color = glm::vec3(1000.f);
         pathSegment.color *= (m.color * m.emittance);
         pathSegment.remainingBounces = 0;
-        return;
-    }
-
-    if (--pathSegment.remainingBounces <= 0) {
-        //pathSegment.color = glm::vec3(0.f);
         return;
     }
 
@@ -73,6 +75,7 @@ __host__ __device__ void scatterRay(
     pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
     pathSegment.ray.origin = intersect;
     pathSegment.color *= m.color; // TODO does that need a scale?
+    --pathSegment.remainingBounces;
     //--pathSegment.remainingBounces;
 
 }

@@ -6,6 +6,7 @@
 #include <thrust/execution_policy.h>
 #include <thrust/random.h>
 #include <thrust/remove.h>
+#include <thrust/partition.h>
 
 #include "sceneStructs.h"
 #include "scene.h"
@@ -306,7 +307,7 @@ __global__ void shadeMaterial(
 
             // If the material indicates that the object was a light, "light" the ray
             //if (material.emittance > 0.0f) {
-            //    pathSegments[idx].color *= (materialColor * material.emittance);
+                //pathSegments[idx].color *= (materialColor * material.emittance);
             //}
             //// Otherwise, do some pseudo-lighting computation. This is actually more
             //// like what you would expect from shading in a rasterizer like OpenGL.
@@ -348,9 +349,9 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
 //__host__ __device__ bool noBouncesRemaining(const PathSegment& p) {
 //    return p.remainingBounces <= 0;
 //}
-struct noBouncesRemaining {
+struct bouncesRemaining {
     __host__ __device__ bool operator()(const PathSegment& p) {
-        return p.remainingBounces <= 0;
+        return p.remainingBounces > 0;
         // TODO also stops if color too dark? or roulettes it I guess. maybe set in scatterRay 
     }
 };
@@ -425,7 +426,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
         computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>> (
             depth,
-            num_paths,
+            dev_path_end - dev_paths,
             dev_paths,
             dev_geoms,
             hst_scene->geoms.size(),
@@ -447,17 +448,18 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         //shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
         shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
             iter,
-            num_paths,
+            dev_path_end - dev_paths,
             dev_intersections,
             dev_paths,
             dev_materials
         );
         //thrust::device_vector
         // TODO I don't think this is right yet
-        dev_path_end = thrust::remove_if(thrust::device, dev_paths, dev_path_end, noBouncesRemaining());
-        num_paths = dev_path_end - dev_paths;
-        //iterationComplete = num_paths <= 0;
-        //iterationComplete = depth > 4;
+        dev_path_end = thrust::partition(thrust::device, dev_paths, dev_path_end, bouncesRemaining());
+        //num_paths = dev_path_end - dev_paths;
+       
+        iterationComplete = (dev_path_end - dev_paths) <= 0;
+        //iterationComplete = depth > 6;
 
         // TODO include reshuffle option here? should enabling that be a compile-time option or run-time?
         //iterationComplete = true; // TODO: should be based off stream compaction results.
@@ -468,6 +470,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             guiData->TracedDepth = depth;
         }
     }
+
+    //num_paths = dev_path_end - dev_paths;
 
     // Assemble this iteration and apply it to the image
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
