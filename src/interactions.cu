@@ -71,9 +71,26 @@ __host__ __device__ void scatterRay(
         return;
     }
 
+    //if (m.specular....) { //TODO 
+        //pathSegment.ray.direction = 
+    //}
+    // TODO need last bounce to also become 0 color I guess?
+    if (pathSegment.remainingBounces < 2) { // <= 1; no chance to hit light at this point so no reason to bounce again
+        pathSegment.color = glm::vec3(0.f);
+        pathSegment.remainingBounces = 0;
+        return;
+    }
     // Super basic diffuse
     pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
+    float pdf = abs(dot(pathSegment.ray.direction, normal)) / PI; // TODO verify this is right, also should possibly do * INV_PI with another constant storing that instead of dividing?
+    if (pdf == 0.f) { // TODO < epsilon?
+        pathSegment.remainingBounces = 0;
+        pathSegment.color = glm::vec3(0.f);
+        return;
+    }
     pathSegment.ray.origin = intersect;
+
+
     pathSegment.color *= m.color; // TODO does that need a scale?
     --pathSegment.remainingBounces;
     //--pathSegment.remainingBounces;

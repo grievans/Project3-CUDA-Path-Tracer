@@ -299,7 +299,7 @@ __global__ void shadeMaterial(
           // Set up the RNG
           // LOOK: this is how you use thrust's RNG! Please look at
           // makeSeededRandomEngine as well.
-            thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+            thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegments[idx].remainingBounces);
             thrust::uniform_real_distribution<float> u01(0, 1);
 
             Material material = materials[intersection.materialId];
@@ -355,6 +355,8 @@ struct bouncesRemaining {
         // TODO also stops if color too dark? or roulettes it I guess. maybe set in scatterRay 
     }
 };
+
+const bool enableSortingPaths = true;
 
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
@@ -456,14 +458,17 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         //thrust::device_vector
         // TODO I don't think this is right yet
         dev_path_end = thrust::partition(thrust::device, dev_paths, dev_path_end, bouncesRemaining());
-        //num_paths = dev_path_end - dev_paths;
+        
        
         iterationComplete = (dev_path_end - dev_paths) <= 0;
-        //iterationComplete = depth > 6;
+        
 
         // TODO include reshuffle option here? should enabling that be a compile-time option or run-time?
-        //iterationComplete = true; // TODO: should be based off stream compaction results.
-        //iterationComplete = depth > traceDepth;
+        if (enableSortingPaths) {
+            // TODO
+        }
+
+        
 
         if (guiData != NULL)
         {
