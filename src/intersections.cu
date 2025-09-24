@@ -106,7 +106,7 @@ __host__ __device__ float sphereIntersectionTest(
     normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
     if (!outside)
     {
-        normal = -normal;
+        normal = -normal; // TODO I've heard might want to remove depending on approach to refraction stuff
     }
 
     return glm::length(r.origin - intersectionPoint);

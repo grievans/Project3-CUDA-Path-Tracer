@@ -71,27 +71,44 @@ __host__ __device__ void scatterRay(
         return;
     }
 
-    //if (m.specular....) { //TODO 
-        //pathSegment.ray.direction = 
-    //}
     // TODO need last bounce to also become 0 color I guess?
     if (pathSegment.remainingBounces < 2) { // <= 1; no chance to hit light at this point so no reason to bounce again
         pathSegment.color = glm::vec3(0.f);
         pathSegment.remainingBounces = 0;
         return;
     }
+
+    // TODO specular intensity and diffuse intensity, store in material perhaps? or just sum here. then rng choose based on weights and render that one
+    //   potential thing: should randomly choose in prior iteration and sort based on that?
+    // TODO not sure if intensity should be some other measure--just length?
+    float diffIntensity = m.color.r + m.color.g + m.color.b;
+    float specIntensity = m.specular.color.r + m.specular.color.g + m.specular.color.b;
+    thrust::uniform_real_distribution<float> u01(0, 1);
+    float randWeight = u01(rng) * (diffIntensity + specIntensity);
+
+    if (randWeight < specIntensity) { //TODO 
+        pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
+            //TODO imperfect specular reflection
+        pathSegment.color *= m.specular.color;
+        --pathSegment.remainingBounces;
+        return;
+    }
+
+
     // Super basic diffuse
     pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
     float pdf = abs(dot(pathSegment.ray.direction, normal)) / PI; // TODO verify this is right, also should possibly do * INV_PI with another constant storing that instead of dividing?
+    // oh wait is this not cosine weighted? seems wrong when I divide....or wait is this the one that just works out?
     if (pdf == 0.f) { // TODO < epsilon?
-        pathSegment.remainingBounces = 0;
         pathSegment.color = glm::vec3(0.f);
+        pathSegment.remainingBounces = 0;
         return;
     }
     pathSegment.ray.origin = intersect;
 
 
     pathSegment.color *= m.color; // TODO does that need a scale?
+    //pathSegment.color *= m.color / pdf; // TODO does that need a scale?
     --pathSegment.remainingBounces;
     //--pathSegment.remainingBounces;
 

@@ -148,9 +148,13 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
         // TODO: implement antialiasing by jittering the ray
+        thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
+        thrust::uniform_real_distribution<float> u01(0, 1);
+        // TODO make sure this jitter is right, seems fine at a glance
+
         segment.ray.direction = glm::normalize(cam.view
-            - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
-            - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
+            - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f + u01(rng))
+            - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f + u01(rng))
         );
 
         segment.pixelIndex = index;
@@ -356,6 +360,12 @@ struct bouncesRemaining {
     }
 };
 
+struct materialOrder {
+    __host__ __device__ bool operator()(const ShadeableIntersection& a, const ShadeableIntersection& b) {
+        return a.materialId <= b.materialId; // TODO
+    }
+};
+
 const bool enableSortingPaths = true;
 
 /**
@@ -456,17 +466,23 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_materials
         );
         //thrust::device_vector
-        // TODO I don't think this is right yet
+        // 
+        // TODO include reshuffle option here? should enabling that be a compile-time option or run-time?
+        // TODO do I need to do this before partition? since intersections I assume lines up with paths before partition?
+            // but if I do it here then needs stable partition... is there a way to get material ids after? should I store in pathsegments?
+        if (enableSortingPaths) {
+            // TODO
+            //thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + (dev_path_end - dev_paths), materialOrder());
+        }
+
+        // Using partition rather than remove_if since not sure if remove_if ensures the "removed" elements are kept in the indices after the returned end (rather than those being filled with corrupted data) and we need to access them later.
         dev_path_end = thrust::partition(thrust::device, dev_paths, dev_path_end, bouncesRemaining());
         
        
         iterationComplete = (dev_path_end - dev_paths) <= 0;
         
 
-        // TODO include reshuffle option here? should enabling that be a compile-time option or run-time?
-        if (enableSortingPaths) {
-            // TODO
-        }
+        
 
         
 
