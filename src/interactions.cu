@@ -44,6 +44,8 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
         + sin(around) * over * perpendicularDirection2;
 }
 
+
+#define PDF_EPSILON 0.00001f
 __host__ __device__ void scatterRay(
     PathSegment & pathSegment,
     glm::vec3 intersect,
@@ -89,7 +91,10 @@ __host__ __device__ void scatterRay(
     if (randWeight < specIntensity) { //TODO 
         pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
             //TODO imperfect specular reflection
-        pathSegment.color *= m.specular.color;
+        float absDotDirNor = abs(dot(pathSegment.ray.direction, normal));
+
+        pathSegment.color *= m.specular.color * absDotDirNor; // / pdf -> / 1
+
         --pathSegment.remainingBounces;
         return;
     }
@@ -97,9 +102,11 @@ __host__ __device__ void scatterRay(
 
     // Super basic diffuse
     pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
-    float pdf = abs(dot(pathSegment.ray.direction, normal)) / PI; // TODO verify this is right, also should possibly do * INV_PI with another constant storing that instead of dividing?
+    float absDotDirNor = abs(dot(pathSegment.ray.direction, normal));
+    // TODO should ray.direction store in a separate variable and use that in ^ rather than directly putting .direction again? unsure of affect on memory access
+    float pdf = absDotDirNor * INV_PI; // TODO verify this is right, also should possibly do * INV_PI with another constant storing that instead of dividing?
     // oh wait is this not cosine weighted? seems wrong when I divide....or wait is this the one that just works out?
-    if (pdf == 0.f) { // TODO < epsilon?
+    if (pdf < PDF_EPSILON) { // TODO < epsilon? still not sure how I want to do
         pathSegment.color = glm::vec3(0.f);
         pathSegment.remainingBounces = 0;
         return;
@@ -107,8 +114,7 @@ __host__ __device__ void scatterRay(
     pathSegment.ray.origin = intersect;
 
 
-    pathSegment.color *= m.color; // TODO does that need a scale?
-    //pathSegment.color *= m.color / pdf; // TODO does that need a scale?
+    pathSegment.color *= m.color * INV_PI * absDotDirNor / pdf; // TODO does that need a scale?
     --pathSegment.remainingBounces;
     //--pathSegment.remainingBounces;
 
