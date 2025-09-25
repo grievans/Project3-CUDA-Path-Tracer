@@ -127,6 +127,33 @@ void pathtraceFree()
     checkCUDAError("pathtraceFree");
 }
 
+#define USE_DOF 1
+#define LENS_RADIUS 0.5f
+#define FOCAL_DISTANCE 10.f
+
+#if USE_DOF
+__host__ __device__ glm::vec2 sampleUniformDiskConcentric(glm::vec2 u) {
+    // map to [-1,1]
+    glm::vec2 uOffset = 2.f * u - 1.f;
+    if (uOffset.x == 0.f && uOffset.y == 0.f) {
+        return uOffset;
+    }
+
+    // apply concentric mapping
+    float theta, r;
+    // TODO is there a better way to structure this than doing the ifs?
+    if (abs(uOffset.x) > abs(uOffset.y)) {
+        r = uOffset.x;
+        theta = PI * 0.25f * (uOffset.y / uOffset.x); // TODO make macro for pi/4?
+    }
+    else {
+        r = uOffset.y;
+        theta = PI * 0.5f - PI * 0.25f * (uOffset.x / uOffset.y);
+    }
+    return r * glm::vec2(cos(theta), sin(theta));
+}
+#endif
+
 /**
 * Generate PathSegments with rays from the camera through the screen into the
 * scene, which is the first bounce of rays.
@@ -144,18 +171,43 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         int index = x + (y * cam.resolution.x);
         PathSegment& segment = pathSegments[index];
 
-        segment.ray.origin = cam.position;
-        segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
-
-        // TODO: implement antialiasing by jittering the ray
         thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
         thrust::uniform_real_distribution<float> u01(0, 1);
-        // TODO make sure this jitter is right, seems fine at a glance
+
+
+#if USE_DOF
+        glm::vec3 rayOrigin = cam.position;
+
+        
+        glm::vec3 rayDirection = glm::normalize(cam.view
+            - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f + u01(rng))
+            - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f + u01(rng))
+        );
+        glm::vec2 pLens = LENS_RADIUS * sampleUniformDiskConcentric(glm::vec2(u01(rng), u01(rng)));
+
+        // TODO I believe view is the forward vector and is normalized
+        
+
+        float ft = FOCAL_DISTANCE / glm::dot(cam.view, rayDirection); // TODO probably need to change since .z local not world
+        glm::vec3 pFocus = rayOrigin + rayDirection * ft;
+        
+        segment.ray.origin = rayOrigin + pLens.x * cam.right + pLens.y * cam.up;
+        segment.ray.direction = normalize(pFocus - segment.ray.origin);
+
+
+#else
+        segment.ray.origin = cam.position;
+        // TODO: implement antialiasing by jittering the ray
+       // TODO make sure this jitter is right, seems fine at a glance
 
         segment.ray.direction = glm::normalize(cam.view
             - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f + u01(rng))
             - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f + u01(rng))
         );
+#endif
+        segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
+
+       
 
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
@@ -373,7 +425,7 @@ struct materialOrder {
     }
 };
 
-const bool enableSortingPaths = true;
+const bool enableSortingPaths = false; // TODO option to control at runtime?
 
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
@@ -480,7 +532,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         if (enableSortingPaths) {
             // TODO
             // This approach is slower, I assume with the extra work of (1) needing a stable partition algorithm and (2) sorting the already-finished paths; going to try storing material ID in paths and sorting after partition
-            //  oh wait, might just not benefit from the sorting in this scene since not much variety in material
+            //  oh wait, might just not benefit from the sorting in this scene since not much variety in material. I think I like the latter approach more still but should potentially test later if there's much performance difference between the two
 #if 0
             thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + (dev_path_end - dev_paths), dev_paths, materialOrderIntersections());
             dev_path_end = thrust::stable_partition(thrust::device, dev_paths, dev_path_end, bouncesRemaining());
