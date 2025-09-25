@@ -472,12 +472,17 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             // but if I do it here then needs stable partition... is there a way to get material ids after? should I store in pathsegments?
         if (enableSortingPaths) {
             // TODO
-            //thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + (dev_path_end - dev_paths), materialOrder());
+            // This approach is slower, I assume with the extra work of (1) needing a stable partition algorithm and (2) sorting the already-finished paths; going to try storing material ID in paths and sorting after partition
+            thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + (dev_path_end - dev_paths), dev_paths, materialOrder());
+            dev_path_end = thrust::stable_partition(thrust::device, dev_paths, dev_path_end, bouncesRemaining());
+        }
+        else {
+            // Using partition rather than remove_if since not sure if remove_if ensures the "removed" elements are kept in the indices after the returned end (rather than those being filled with corrupted data) and we need to access them later.
+            dev_path_end = thrust::partition(thrust::device, dev_paths, dev_path_end, bouncesRemaining());
+        
+
         }
 
-        // Using partition rather than remove_if since not sure if remove_if ensures the "removed" elements are kept in the indices after the returned end (rather than those being filled with corrupted data) and we need to access them later.
-        dev_path_end = thrust::partition(thrust::device, dev_paths, dev_path_end, bouncesRemaining());
-        
        
         iterationComplete = (dev_path_end - dev_paths) <= 0;
         
