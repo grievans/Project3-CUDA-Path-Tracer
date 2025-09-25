@@ -45,7 +45,30 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
 }
 
 
-#define PDF_EPSILON 0.00001f
+__host__ __device__ float fresnelDielectricEval(float cosThetaI) {
+    // TODO add
+    // TODO probably needs m.indexOfRefraction
+
+    float Rparl = 1.f;
+    float Rperp = 1.f;
+    return (Rparl * Rparl + Rperp * Rperp) / 2.f;
+}
+
+__host__ __device__ bool refract(glm::vec3 wi, glm::vec3 n, float eta, glm::vec3& wt) {
+    float cosThetaI = dot(n, wi);
+    float sin2ThetaI = glm::max(0.f, 1.f - cosThetaI * cosThetaI);
+    float sin2ThetaT = eta * eta * sin2ThetaI;
+
+    if (sin2ThetaT >= 1.f) return false; // TODO might change how these values work
+    float cosThetaT = sqrt(1.f - sin2ThetaT);
+    wt = eta * -wi + (eta * cosThetaI - cosThetaT) * n;
+    return true;
+
+}
+
+#define PDF_EPSILON 0.0001f
+#define RAY_EPSILON 0.01f
+// TODO figure out good epsilons; IDK why I have issues for 0.001f step along distance
 __host__ __device__ void scatterRay(
     PathSegment & pathSegment,
     glm::vec3 intersect,
@@ -80,21 +103,76 @@ __host__ __device__ void scatterRay(
         return;
     }
 
+    thrust::uniform_real_distribution<float> u01(0, 1);
+    
+    float modeSum = m.hasReflective + m.hasRefractive;
+    float refMode = u01(rng) * (modeSum); // TODO make better variable names?
+    // if has both reflective and refractive components, 50% chance of each and modeSum = 2.f -> multiply color by 2
+    // otherwise just has the one
+    // TODO precomputing random values in previous step and including that in sorting seems like it'd be beneficial?
+
+    float diffIntensity = m.color.r + m.color.g + m.color.b;
+    float specIntensity = m.specular.color.r + m.specular.color.g + m.specular.color.b;
+
+    float randWeight = u01(rng) * (diffIntensity + specIntensity);
+
+
+
+
     // TODO specular intensity and diffuse intensity, store in material perhaps? or just sum here. then rng choose based on weights and render that one
     //   potential thing: should randomly choose in prior iteration and sort based on that?
     // TODO not sure if intensity should be some other measure--just length?
-    float diffIntensity = m.color.r + m.color.g + m.color.b;
-    float specIntensity = m.specular.color.r + m.specular.color.g + m.specular.color.b;
-    thrust::uniform_real_distribution<float> u01(0, 1);
-    float randWeight = u01(rng) * (diffIntensity + specIntensity);
+    //pathSegment.ray.origin = intersect;
 
     if (randWeight < specIntensity) { //TODO 
+
+        if (refMode < m.hasRefractive) {
+            //refraction:
+            
+            // TOOD going to write this code separately first then look into how can combine
+
+            //pathSegment.ray.direction = normalize(pathSegment.ray.direction);
+
+
+            bool entering = dot(normal, pathSegment.ray.direction) < 0;
+            float eta = entering ? 1.f / m.indexOfRefraction : m.indexOfRefraction;
+            //float eta = entering ? m.indexOfRefraction : 1.f / m.indexOfRefraction;
+
+            glm::vec3 wi = glm::refract(pathSegment.ray.direction, entering ? normal : -normal, eta);
+            //if (length(wi) < 0.000001f) {
+            // TODO should this be == 0 or < epsilon?
+            if (wi == glm::vec3(0.f)) {
+            //glm::vec3 wi;
+            //if (!refract(pathSegment.ray.direction, entering ? normal : -normal, eta, wi)) {
+                pathSegment.color = glm::vec3(0.f);
+                pathSegment.remainingBounces = 0;
+                return;
+            }
+            pathSegment.ray.direction = normalize(wi);
+            // TODO normalize stuff?
+            //pathSegment.ray.direction = normalize(wi);
+            //pathSegment.ray.direction = normalize(pathSegment.ray.direction);
+
+            pathSegment.ray.origin = intersect + pathSegment.ray.direction * RAY_EPSILON;
+            //float absDotDirNor = abs(dot(pathSegment.ray.direction, normal)); //cancels out
+            pathSegment.color *= m.specular.color * eta * eta * modeSum;
+            --pathSegment.remainingBounces;
+            return;
+        }
+
+        //reflection:
+
         pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
+        pathSegment.ray.origin = intersect + pathSegment.ray.direction * RAY_EPSILON;
             //TODO imperfect specular reflection
-        float absDotDirNor = abs(dot(pathSegment.ray.direction, normal));
+        //float absDotDirNor = abs(dot(pathSegment.ray.direction, normal)); //cancels out here
 
-        pathSegment.color *= m.specular.color * absDotDirNor; // / pdf -> / 1
+        //if (m.hasRefractive) {
+            //pathSegment.ray.direction *= -1.f; //TODO not how to do this just test
+        //}
 
+        pathSegment.color *= m.specular.color * modeSum; // / pdf -> / 1
+        
         --pathSegment.remainingBounces;
         return;
     }
@@ -111,10 +189,10 @@ __host__ __device__ void scatterRay(
         pathSegment.remainingBounces = 0;
         return;
     }
-    pathSegment.ray.origin = intersect;
+    pathSegment.ray.origin = intersect + pathSegment.ray.direction * RAY_EPSILON;
 
 
-    pathSegment.color *= m.color * INV_PI * absDotDirNor / pdf; // TODO does that need a scale?
+    pathSegment.color *= m.color * INV_PI * absDotDirNor / pdf * modeSum; // TODO does that need a scale?
     --pathSegment.remainingBounces;
     //--pathSegment.remainingBounces;
 

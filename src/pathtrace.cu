@@ -127,9 +127,10 @@ void pathtraceFree()
     checkCUDAError("pathtraceFree");
 }
 
-#define USE_DOF 1
+#define USE_DOF 0
 #define LENS_RADIUS 0.5f
 #define FOCAL_DISTANCE 10.f
+// TODO maybe make configurable in JSONs^
 
 #if USE_DOF
 __host__ __device__ glm::vec2 sampleUniformDiskConcentric(glm::vec2 u) {
