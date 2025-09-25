@@ -309,6 +309,8 @@ __global__ void shadeMaterial(
             Material material = materials[intersection.materialId];
             glm::vec3 materialColor = material.color;
 
+            pathSegments->lastMaterialID = intersection.materialId; // for approach of sorting 
+
             // If the material indicates that the object was a light, "light" the ray
             //if (material.emittance > 0.0f) {
                 //pathSegments[idx].color *= (materialColor * material.emittance);
@@ -360,9 +362,14 @@ struct bouncesRemaining {
     }
 };
 
-struct materialOrder {
+struct materialOrderIntersections {
     __host__ __device__ bool operator()(const ShadeableIntersection& a, const ShadeableIntersection& b) {
         return a.materialId <= b.materialId; // TODO
+    }
+};
+struct materialOrder {
+    __host__ __device__ bool operator()(const PathSegment& a, const PathSegment& b) {
+        return a.lastMaterialID <= b.lastMaterialID; // TODO < or <=?
     }
 };
 
@@ -473,13 +480,19 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         if (enableSortingPaths) {
             // TODO
             // This approach is slower, I assume with the extra work of (1) needing a stable partition algorithm and (2) sorting the already-finished paths; going to try storing material ID in paths and sorting after partition
-            thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + (dev_path_end - dev_paths), dev_paths, materialOrder());
+            //  oh wait, might just not benefit from the sorting in this scene since not much variety in material
+#if 0
+            thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + (dev_path_end - dev_paths), dev_paths, materialOrderIntersections());
             dev_path_end = thrust::stable_partition(thrust::device, dev_paths, dev_path_end, bouncesRemaining());
+#else
+            dev_path_end = thrust::partition(thrust::device, dev_paths, dev_path_end, bouncesRemaining());
+            thrust::sort(thrust::device, dev_paths, dev_path_end, materialOrder());
+#endif
+
         }
         else {
             // Using partition rather than remove_if since not sure if remove_if ensures the "removed" elements are kept in the indices after the returned end (rather than those being filled with corrupted data) and we need to access them later.
             dev_path_end = thrust::partition(thrust::device, dev_paths, dev_path_end, bouncesRemaining());
-        
 
         }
 
