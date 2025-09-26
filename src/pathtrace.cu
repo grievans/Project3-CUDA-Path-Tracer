@@ -477,6 +477,18 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     //   for you.
 
     // TODO: perform one iteration of path tracing
+    //std::cout << iter << std::endl;
+
+    thrust::default_random_engine rng = makeSeededRandomEngine(iter, iter, iter);
+    thrust::uniform_real_distribution<float> u01(hst_scene->minT, hst_scene->maxT);
+    float frameTime = u01(rng);
+
+    //for (Geom& g : hst_scene->geoms) {
+        //g.update(frameTime);
+        //updateGeom(&g, frameTime);/
+    //}
+    hst_scene->updateGeoms(frameTime);
+    cudaMemcpy(dev_geoms, hst_scene->geoms.data(), hst_scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
 
     generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths);
     checkCUDAError("generate camera ray");

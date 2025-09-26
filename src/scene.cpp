@@ -31,6 +31,39 @@ Scene::Scene(string filename)
     }
 }
 
+void Scene::updateGeoms(float time)
+{
+    for (int index = 0; index < this->geoms.size(); ++index) {
+        Geom* g = &(this->geoms.at(index));
+        std::vector<KeyFrame>& frames = this->geomFrames.at(index);
+        //AnimGeom* ag = dynamic_cast<AnimGeom*>(g);
+
+        if (frames.size() > 1) {
+            KeyFrame* f0 = &(frames[0]);
+            KeyFrame* f1 = &(frames[1]);
+            for (unsigned int i = 1; i < frames.size(); ++i) {
+                if (frames[i].key >= time) {
+                    f0 = &(frames[i - 1]);
+                    f1 = &(frames[i]);
+                    break;
+                }
+            }
+            float u = (time - f0->key) / (f1->key - f0->key);
+            g->translation = glm::mix(f0->translation, f1->translation, u);
+            // TODO SLERP?
+            g->rotation = glm::mix(f0->rotation, f1->rotation, u);
+            g->scale = glm::mix(f0->scale, f1->scale, u);
+
+
+            g->transform = utilityCore::buildTransformationMatrix(
+                g->translation, g->rotation, g->scale);
+            g->inverseTransform = glm::inverse(g->transform);
+            g->invTranspose = glm::inverseTranspose(g->transform);
+        }
+    }
+    return;
+}
+
 void Scene::loadFromJSON(const std::string& jsonName)
 {
     std::ifstream f(jsonName);
@@ -91,28 +124,83 @@ void Scene::loadFromJSON(const std::string& jsonName)
     for (const auto& p : objectsData)
     {
         const auto& type = p["TYPE"];
+        
         Geom newGeom;
-        if (type == "cube")
-        {
-            newGeom.type = CUBE;
-        }
-        else
-        {
-            newGeom.type = SPHERE;
-        }
-        newGeom.materialid = MatNameToID[p["MATERIAL"]];
-        const auto& trans = p["TRANS"];
-        const auto& rotat = p["ROTAT"];
-        const auto& scale = p["SCALE"];
-        newGeom.translation = glm::vec3(trans[0], trans[1], trans[2]);
-        newGeom.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
-        newGeom.scale = glm::vec3(scale[0], scale[1], scale[2]);
-        newGeom.transform = utilityCore::buildTransformationMatrix(
-            newGeom.translation, newGeom.rotation, newGeom.scale);
-        newGeom.inverseTransform = glm::inverse(newGeom.transform);
-        newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
+        std::vector<KeyFrame> newFrames;
+        if (p.contains("FRAMES")) {
+            const auto& animData = p["FRAMES"];
 
+            // TODO how do I wanna store animation?
+            // TODO should I do some sort of slerp to allow rotation keyframing?
+
+            for (const auto& f : animData) {
+                float t = f["T"];
+                const auto& trans = f["TRANS"];
+                const auto& rotat = f["ROTAT"];
+                const auto& scale = f["SCALE"];
+                KeyFrame frame;
+                frame.translation = glm::vec3(trans[0], trans[1], trans[2]);
+                frame.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
+                frame.scale = glm::vec3(scale[0], scale[1], scale[2]);
+                frame.key = t;
+                // TODO note this only supports time scales which include 0 as a point rn
+                if (t > this->maxT) {
+                    this->maxT = t;
+                }
+                if (t < this->minT) {
+                    this->minT = t;
+                }
+                newFrames.push_back(frame);
+                
+
+            }
+            if (type == "cube")
+            {
+                newGeom.type = CUBE;
+            }
+            else
+            {
+                newGeom.type = SPHERE;
+            }
+            newGeom.materialid = MatNameToID[p["MATERIAL"]];
+
+            newGeom.translation = newFrames[0].translation;
+            newGeom.rotation = newFrames[0].rotation;
+            newGeom.scale = newFrames[0].scale;
+            newGeom.transform = utilityCore::buildTransformationMatrix(
+                newGeom.translation, newGeom.rotation, newGeom.scale);
+            newGeom.inverseTransform = glm::inverse(newGeom.transform);
+            newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
+
+            //geoms.push_back(newGeom);
+        }
+        else {
+            if (type == "cube")
+            {
+                newGeom.type = CUBE;
+            }
+            else
+            {
+                newGeom.type = SPHERE;
+            }
+            newGeom.materialid = MatNameToID[p["MATERIAL"]];
+            const auto& trans = p["TRANS"];
+            const auto& rotat = p["ROTAT"];
+            const auto& scale = p["SCALE"];
+            newGeom.translation = glm::vec3(trans[0], trans[1], trans[2]);
+            newGeom.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
+            newGeom.scale = glm::vec3(scale[0], scale[1], scale[2]);
+            newGeom.transform = utilityCore::buildTransformationMatrix(
+                newGeom.translation, newGeom.rotation, newGeom.scale);
+            newGeom.inverseTransform = glm::inverse(newGeom.transform);
+            newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
+
+
+        }
         geoms.push_back(newGeom);
+        geomFrames.push_back(newFrames);
+        
+
     }
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;

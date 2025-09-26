@@ -21,6 +21,14 @@ struct Ray
     glm::vec3 direction;
 };
 
+struct KeyFrame {
+    float key;
+    glm::vec3 translation;
+    glm::vec3 rotation;
+    glm::vec3 scale;
+};
+
+
 struct Geom
 {
     enum GeomType type;
@@ -31,7 +39,20 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+    //virtual void update(float time);
+    //std::vector<KeyFrame> frames;
 };
+
+
+//void updateGeom(Geom* g, float time);
+
+//struct AnimGeom : public Geom {
+//    // TODO how do I want to store keyframes? I think want to recalculate matrices each time so can just interpolate vectors
+//    // I think just a vec that's sorted by key should be fine? TODO not sure best way--map doesn't really work cuz wanna get to each key from values in between?
+//    // maybe a std::set to make sure sorted? TODO
+//    std::vector<KeyFrame> frames;
+//    //void update(float time);
+//};
 
 struct Material
 {
