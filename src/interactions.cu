@@ -45,26 +45,38 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
 }
 
 
-__host__ __device__ float fresnelDielectricEval(float cosThetaI) {
+__host__ __device__ float fresnelDielectricEval(float cosThetaI, float eta) {
     // TODO add
     // TODO probably needs m.indexOfRefraction
+    cosThetaI = glm::clamp(cosThetaI, -1.f, 1.f);
+    float etaI = cosThetaI > 0.f ? 1.f : eta;
+    float etaT = cosThetaI > 0.f ? eta : 1.f;
+    cosThetaI = abs(cosThetaI);
 
-    float Rparl = 1.f;
-    float Rperp = 1.f;
+    float sinThetaI = sqrt(max(0.f, 1.f - cosThetaI * cosThetaI));
+    float sinThetaT = etaI / etaT * sinThetaI;
+    if (sinThetaT >= 1.f) {
+        return 1.f;
+    }
+    float cosThetaT = sqrt(max(0.f, 1.f - sinThetaT * sinThetaT));
+
+    float Rparl = ((etaT * cosThetaI) - (etaI * cosThetaT)) / ((etaT * cosThetaI) + (etaI * cosThetaT));
+    float Rperp = ((etaI * cosThetaI) - (etaT * cosThetaT)) / ((etaI * cosThetaI) + (etaT * cosThetaT));
     return (Rparl * Rparl + Rperp * Rperp) / 2.f;
 }
 
-__host__ __device__ bool refract(glm::vec3 wi, glm::vec3 n, float eta, glm::vec3& wt) {
-    float cosThetaI = dot(n, wi);
-    float sin2ThetaI = glm::max(0.f, 1.f - cosThetaI * cosThetaI);
-    float sin2ThetaT = eta * eta * sin2ThetaI;
+//__host__ __device__ bool refract(glm::vec3 wi, glm::vec3 n, float eta, glm::vec3& wt) {
+//    float cosThetaI = dot(n, wi);
+//    float sin2ThetaI = glm::max(0.f, 1.f - cosThetaI * cosThetaI);
+//    float sin2ThetaT = eta * eta * sin2ThetaI;
+//
+//    if (sin2ThetaT >= 1.f) return false; // TODO might change how these values work
+//    float cosThetaT = sqrt(1.f - sin2ThetaT);
+//    wt = eta * -wi + (eta * cosThetaI - cosThetaT) * n;
+//    return true;
+//
+//}
 
-    if (sin2ThetaT >= 1.f) return false; // TODO might change how these values work
-    float cosThetaT = sqrt(1.f - sin2ThetaT);
-    wt = eta * -wi + (eta * cosThetaI - cosThetaT) * n;
-    return true;
-
-}
 
 #define PDF_EPSILON 0.0001f
 #define RAY_EPSILON 0.01f
@@ -124,6 +136,9 @@ __host__ __device__ void scatterRay(
     // TODO not sure if intensity should be some other measure--just length?
     //pathSegment.ray.origin = intersect;
 
+    // TODO would like to implement imperfect reflection though note does say not required so not sure worth anything grade-wise but I think could be a nicer visual to show
+    // also TODO maybe do diffuse transmission even though that doesn't come up much material-wise
+
     if (randWeight < specIntensity) { //TODO 
 
         if (refMode < m.hasRefractive) {
@@ -155,8 +170,12 @@ __host__ __device__ void scatterRay(
 
             pathSegment.ray.origin = intersect + pathSegment.ray.direction * RAY_EPSILON;
             //float absDotDirNor = abs(dot(pathSegment.ray.direction, normal)); //cancels out
-            pathSegment.color *= m.specular.color * eta * eta * modeSum;
+            pathSegment.color *= m.specular.color * eta * eta * modeSum * (modeSum > 1.f ? 1.f - fresnelDielectricEval(dot(normal, normalize(wi)), m.indexOfRefraction) : 1.f);
             --pathSegment.remainingBounces;
+
+            // TODO is fresnel supposed to apply for pure transmission/reflection? if so remove that modeSum > 1.f
+
+            
             return;
         }
 
@@ -171,7 +190,9 @@ __host__ __device__ void scatterRay(
             //pathSegment.ray.direction *= -1.f; //TODO not how to do this just test
         //}
 
-        pathSegment.color *= m.specular.color * modeSum; // / pdf -> / 1
+        //pathSegment.color *= m.specular.color * modeSum; // / pdf -> / 1
+
+        pathSegment.color *= m.specular.color * modeSum * (modeSum > 1.f ? fresnelDielectricEval(dot(normal, normalize(pathSegment.ray.direction)), m.indexOfRefraction) : 1.f);
         
         --pathSegment.remainingBounces;
         return;
