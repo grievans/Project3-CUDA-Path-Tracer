@@ -80,6 +80,8 @@ __host__ __device__ float fresnelDielectricEval(float cosThetaI, float eta) {
 
 #define PDF_EPSILON 0.0001f
 #define RAY_EPSILON 0.01f
+#define ROULETTE_THRESHOLD 0.01f
+#define ROULETTE_ON 1
 // TODO figure out good epsilons; IDK why I have issues for 0.001f step along distance
 __host__ __device__ void scatterRay(
     PathSegment & pathSegment,
@@ -115,8 +117,23 @@ __host__ __device__ void scatterRay(
         return;
     }
 
+
     thrust::uniform_real_distribution<float> u01(0, 1);
-    
+    // TODO where should I do roulette termination?
+#if ROULETTE_ON
+    // TODO figure out how to write well for GPU
+    if (length(pathSegment.color) < ROULETTE_THRESHOLD) {
+        if (u01(rng) < 0.25f) {
+            pathSegment.color *= 4.f;
+        } else {
+            pathSegment.color = glm::vec3(0.f);
+            pathSegment.remainingBounces = 0;
+            return;
+        }
+    }
+
+#endif
+
     float modeSum = m.hasReflective + m.hasRefractive;
     float refMode = u01(rng) * (modeSum); // TODO make better variable names?
     // if has both reflective and refractive components, 50% chance of each and modeSum = 2.f -> multiply color by 2

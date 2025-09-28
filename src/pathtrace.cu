@@ -411,7 +411,6 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
 struct bouncesRemaining {
     __host__ __device__ bool operator()(const PathSegment& p) {
         return p.remainingBounces > 0;
-        // TODO also stops if color too dark? or roulettes it I guess. maybe set in scatterRay 
     }
 };
 
