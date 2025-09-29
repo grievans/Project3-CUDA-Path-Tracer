@@ -30,6 +30,7 @@ __host__ __device__ inline unsigned int utilhash(unsigned int a)
  */
 __host__ __device__ inline glm::vec3 getPointOnRay(Ray r, float t)
 {
+    // TODO try removing 0.0001 here, might fix issue with error in transmission
     return r.origin + (t - .0001f) * glm::normalize(r.direction);
 }
 
