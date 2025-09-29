@@ -113,3 +113,38 @@ __host__ __device__ float sphereIntersectionTest(
 
     return glm::length(r.origin - intersectionPoint);
 }
+
+
+
+__host__ __device__ float triangleIntersectionTest(const Geom& mesh, const Triangle& tri, const glm::vec3 *vertPos, const glm::vec3 *vertNorm, Ray r, glm::vec3& intersectionPoint, glm::vec3& normal)
+{
+    // TODO maybe transform verts on CPU side initially before rather than transforming ray here?
+
+    glm::vec3 ro = multiplyMV(mesh.inverseTransform, glm::vec4(r.origin, 1.0f));
+    glm::vec3 rd = glm::normalize(multiplyMV(mesh.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+    Ray rt;
+    rt.origin = ro;
+    rt.direction = rd;
+
+    const glm::vec3 & v0 = vertPos[tri.posIndices[0]];
+    const glm::vec3 & v1 = vertPos[tri.posIndices[1]];
+    const glm::vec3 & v2 = vertPos[tri.posIndices[2]];
+
+    glm::vec3 bPos;
+    if (!glm::intersectRayTriangle(rt.origin, rt.direction, v0, v1, v2, bPos)) {
+        return -1.f;
+    }
+    //bPos.z = 1.f - bPos.x - bPos.y;
+    const glm::vec3 & n0 = vertNorm[tri.normIndices[0]];
+    const glm::vec3 & n1 = vertNorm[tri.normIndices[1]];
+    const glm::vec3 & n2 = vertNorm[tri.normIndices[2]];
+
+    // TODO need to figure out how to do this
+    // also maybe need to 
+    glm::vec3 iPos = (bPos.x * v0 + bPos.y * v1 + bPos.z * v2);
+    //normal = (bPos.x * n0 + bPos.y * n1 + bPos.z * n2);
+    normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4((bPos.x * n0 + bPos.y * n1 + bPos.z * n2), 0.f)));
+
+    return glm::length(r.origin - iPos);
+}

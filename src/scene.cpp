@@ -179,6 +179,11 @@ void Scene::loadFromJSON(const std::string& jsonName)
             {
                 newGeom.type = CUBE;
             }
+            else if (type == "gltf") {
+                newGeom.type = MESH;
+                const auto& file = p["FILE"];
+                loadFromGLTF(newGeom, file);
+            }
             else
             {
                 newGeom.type = SPHERE;
@@ -234,4 +239,64 @@ void Scene::loadFromJSON(const std::string& jsonName)
     int arraylen = camera.resolution.x * camera.resolution.y;
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
+}
+
+void Scene::loadFromGLTF(Geom& geom, const std::string& gltfName)
+{
+    //following examples/basic/main in tinygltf
+    tinygltf::TinyGLTF loader;
+    std::string err;
+    std::string warn;
+
+    tinygltf::Model model;
+
+    // TODO read file path to check if binary vs. ASCII?
+    bool res = loader.LoadBinaryFromFile(&model, &err, &warn, gltfName);
+    if (!warn.empty()) {
+        std::cout << "WARN: " << warn << std::endl;
+    }
+
+    if (!err.empty()) {
+        std::cout << "ERR: " << err << std::endl;
+    }
+
+    if (!res)
+        std::cout << "Failed to load glTF: " << gltfName << std::endl;
+    else
+        std::cout << "Loaded glTF: " << gltfName << std::endl;
+
+
+    geom.triStart = this->meshTriangles.size();
+
+    // TODO
+
+    for (const auto& mesh : model.meshes) {
+        std::cout << "Loading mesh: " << mesh.name << std::endl;
+        for (const auto& prim : mesh.primitives) {
+            tinygltf::Accessor indexAccessor = model.accessors[prim.indices];
+            tinygltf::Accessor posAccessor = model.accessors[prim.attributes.at("POSITION")];
+            tinygltf::Accessor normAccessor = model.accessors[prim.attributes.at("NORMAL")];
+            // TODO figure out syntax for loading in the points from this
+            
+
+        }
+    }
+
+    // placeholder values to make sure triangle intersection working
+    Triangle tri;
+    for (int i = 0; i < 3; ++i) {
+        tri.posIndices[i] = i;
+        tri.normIndices[i] = i;
+
+    }
+    this->vertPositions.push_back(glm::vec3(1.f, 1.f, 0.f));
+    this->vertPositions.push_back(glm::vec3(1.f, -1.f, 0.f));
+    this->vertPositions.push_back(glm::vec3(-1.f, -1.f, 0.f));
+    this->vertNormals.push_back(glm::vec3(0.f, 0.f, 1.f));
+    this->vertNormals.push_back(glm::vec3(0.f, 0.f, 1.f));
+    this->vertNormals.push_back(glm::vec3(0.f, 0.f, 1.f));
+    this->meshTriangles.push_back(tri);
+
+    geom.triEnd = this->meshTriangles.size();
+
 }

@@ -7,12 +7,15 @@
 #include <string>
 #include <vector>
 
+#include "TinyGLTF/tiny_gltf.h"
+
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
 enum GeomType
 {
     SPHERE,
-    CUBE
+    CUBE,
+    MESH
 };
 
 struct Ray
@@ -41,6 +44,8 @@ struct Geom
     glm::mat4 invTranspose;
     //virtual void update(float time);
     //std::vector<KeyFrame> frames;
+    int triStart;
+    int triEnd;
 };
 
 
@@ -106,4 +111,15 @@ struct ShadeableIntersection
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+};
+
+
+struct Triangle {
+    //glm::vec3 v0;
+    //glm::vec3 v1;
+    //glm::vec3 v2;
+    int posIndices[3];
+    int normIndices[3];
+    
+    // TODO materials and such once I do texture loading
 };

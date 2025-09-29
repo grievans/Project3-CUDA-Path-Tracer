@@ -83,6 +83,9 @@ static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 // ...
+static Triangle* dev_triangles = NULL;
+static glm::vec3* dev_vertPositions = NULL;
+static glm::vec3* dev_vertNormals = NULL;
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -103,7 +106,6 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
     cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
-
     cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
     cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
 
@@ -111,6 +113,15 @@ void pathtraceInit(Scene* scene)
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
     // TODO: initialize any extra device memory you need
+    cudaMalloc(&dev_triangles, scene->meshTriangles.size() * sizeof(Triangle));
+    cudaMemcpy(dev_triangles, scene->meshTriangles.data(), scene->meshTriangles.size() * sizeof(Triangle), cudaMemcpyHostToDevice);
+
+    cudaMalloc(&dev_vertPositions, scene->vertPositions.size() * sizeof(glm::vec3));
+    cudaMemcpy(dev_vertPositions, scene->vertPositions.data(), scene->vertPositions.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+
+    cudaMalloc(&dev_vertNormals, scene->vertNormals.size() * sizeof(glm::vec3));
+    cudaMemcpy(dev_vertNormals, scene->vertNormals.data(), scene->vertNormals.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+
 
     checkCUDAError("pathtraceInit");
 }
@@ -123,6 +134,9 @@ void pathtraceFree()
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
     // TODO: clean up any extra device memory you created
+    cudaFree(dev_triangles);
+    cudaFree(dev_vertPositions);
+    cudaFree(dev_vertNormals);
 
     checkCUDAError("pathtraceFree");
 }
@@ -225,7 +239,10 @@ __global__ void computeIntersections(
     PathSegment* pathSegments,
     Geom* geoms,
     int geoms_size,
-    ShadeableIntersection* intersections)
+    ShadeableIntersection* intersections,
+    Triangle* triangles,
+    glm::vec3* vertPositions,
+    glm::vec3* vertNormals)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -245,7 +262,7 @@ __global__ void computeIntersections(
 
         // naive parse through global geoms
 
-        for (int i = 0; i < geoms_size; i++)
+        for (int i = 0; i < geoms_size; ++i)
         {
             Geom& geom = geoms[i];
 
@@ -256,6 +273,12 @@ __global__ void computeIntersections(
             else if (geom.type == SPHERE)
             {
                 t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+            }
+            else if (geom.type == MESH) {
+                for (int j = geom.triStart; j < geom.triEnd; ++j) {
+                    t = triangleIntersectionTest(geom, triangles[j], vertPositions, vertNormals, pathSegment.ray, tmp_intersect, tmp_normal);
+
+                }
             }
             // TODO: add more intersection tests here... triangle? metaball? CSG?
 
@@ -489,6 +512,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     hst_scene->updateGeoms(frameTime);
     cudaMemcpy(dev_geoms, hst_scene->geoms.data(), hst_scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
 
+
+
     generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths);
     checkCUDAError("generate camera ray");
 
@@ -513,7 +538,10 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_paths,
             dev_geoms,
             hst_scene->geoms.size(),
-            dev_intersections
+            dev_intersections,
+            dev_triangles,
+            dev_vertPositions,
+            dev_vertNormals
         );
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();
