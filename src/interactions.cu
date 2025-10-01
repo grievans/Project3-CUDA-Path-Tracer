@@ -53,12 +53,12 @@ __host__ __device__ float fresnelDielectricEval(float cosThetaI, float eta) {
     float etaT = cosThetaI > 0.f ? eta : 1.f;
     cosThetaI = abs(cosThetaI);
 
-    float sinThetaI = sqrt(max(0.f, 1.f - cosThetaI * cosThetaI));
+    float sinThetaI = sqrt(glm::max(0.f, 1.f - cosThetaI * cosThetaI));
     float sinThetaT = etaI / etaT * sinThetaI;
     if (sinThetaT >= 1.f) {
         return 1.f;
     }
-    float cosThetaT = sqrt(max(0.f, 1.f - sinThetaT * sinThetaT));
+    float cosThetaT = sqrt(glm::max(0.f, 1.f - sinThetaT * sinThetaT));
 
     float Rparl = ((etaT * cosThetaI) - (etaI * cosThetaT)) / ((etaT * cosThetaI) + (etaI * cosThetaT));
     float Rperp = ((etaI * cosThetaI) - (etaT * cosThetaT)) / ((etaI * cosThetaI) + (etaT * cosThetaT));
@@ -187,7 +187,8 @@ __host__ __device__ void scatterRay(
 
             pathSegment.ray.origin = intersect + pathSegment.ray.direction * RAY_EPSILON;
             //float absDotDirNor = abs(dot(pathSegment.ray.direction, normal)); //cancels out
-            pathSegment.color *= m.specular.color * eta * eta * modeSum * (modeSum > 1.f ? 1.f - fresnelDielectricEval(dot(normal, normalize(wi)), m.indexOfRefraction) : 1.f);
+            pathSegment.color *= m.specular.color * eta * eta * modeSum * (true ? 1.f - fresnelDielectricEval(dot(normal, normalize(wi)), m.indexOfRefraction) : 1.f);
+            //pathSegment.color *= m.specular.color * eta * eta * modeSum * (modeSum > 1.f ? 1.f - fresnelDielectricEval(dot(normal, normalize(wi)), m.indexOfRefraction) : 1.f);
             --pathSegment.remainingBounces;
 
             // TODO is fresnel supposed to apply for pure transmission/reflection? if so remove that modeSum > 1.f
@@ -209,7 +210,8 @@ __host__ __device__ void scatterRay(
 
         //pathSegment.color *= m.specular.color * modeSum; // / pdf -> / 1
 
-        pathSegment.color *= m.specular.color * modeSum * (modeSum > 1.f ? fresnelDielectricEval(dot(normal, normalize(pathSegment.ray.direction)), m.indexOfRefraction) : 1.f);
+        pathSegment.color *= m.specular.color * modeSum * (true ? fresnelDielectricEval(dot(normal, normalize(pathSegment.ray.direction)), m.indexOfRefraction) : 1.f);
+        //pathSegment.color *= m.specular.color * modeSum * (modeSum > 1.f ? fresnelDielectricEval(dot(normal, normalize(pathSegment.ray.direction)), m.indexOfRefraction) : 1.f);
         
         --pathSegment.remainingBounces;
         return;

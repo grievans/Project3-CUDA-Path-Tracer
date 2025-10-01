@@ -251,7 +251,8 @@ void Scene::loadFromGLTF(Geom& geom, const std::string& gltfName)
     tinygltf::Model model;
 
     // TODO read file path to check if binary vs. ASCII?
-    bool res = loader.LoadBinaryFromFile(&model, &err, &warn, gltfName);
+    bool res = loader.LoadASCIIFromFile(&model, &err, &warn, gltfName);
+    //bool res = loader.LoadBinaryFromFile(&model, &err, &warn, gltfName);
     if (!warn.empty()) {
         std::cout << "WARN: " << warn << std::endl;
     }
@@ -273,29 +274,78 @@ void Scene::loadFromGLTF(Geom& geom, const std::string& gltfName)
     for (const auto& mesh : model.meshes) {
         std::cout << "Loading mesh: " << mesh.name << std::endl;
         for (const auto& prim : mesh.primitives) {
-            tinygltf::Accessor indexAccessor = model.accessors[prim.indices];
-            tinygltf::Accessor posAccessor = model.accessors[prim.attributes.at("POSITION")];
-            tinygltf::Accessor normAccessor = model.accessors[prim.attributes.at("NORMAL")];
-            // TODO figure out syntax for loading in the points from this
             
+            tinygltf::Accessor& posAccessor = model.accessors[prim.attributes.at("POSITION")];
+            tinygltf::BufferView& posBufferView = model.bufferViews[posAccessor.bufferView];
+            tinygltf::Buffer& posBuffer = model.buffers[posBufferView.buffer];
+            //tinygltf::Accessor& normAccessor = model.accessors[prim.attributes.at("NORMAL")];
+            // TODO figure out syntax for loading in the points from this
+            // TODO checkout perhaps accessor.minVal for later
+            //const auto posDataPtr = posBuffer.data.data() + posBufferView.byteOffset + posAccessor.byteOffset;
+            const float* posDataPtr = (float*) &(posBuffer.data[posBufferView.byteOffset + posAccessor.byteOffset]);
+            //const auto posByteStride = posAccessor.ByteStride(posBufferView);
+            const auto posCount = posAccessor.count;
 
+            int vertStartidx = this->vertPositions.size();
+
+            for (size_t i = 0; i < posCount; ++i) {
+                glm::vec3 pos(posDataPtr[i * 3], posDataPtr[i * 3 + 1], posDataPtr[i * 3 + 2]);
+                //pos *= 100.f;
+                this->vertPositions.push_back(pos);
+            }
+
+
+            tinygltf::Accessor& normAccessor = model.accessors[prim.attributes.at("NORMAL")];
+            tinygltf::BufferView& normBufferView = model.bufferViews[normAccessor.bufferView];
+            tinygltf::Buffer& normBuffer = model.buffers[normBufferView.buffer];
+
+            //const auto normDataPtr = normBuffer.data.data() + normBufferView.byteOffset + normAccessor.byteOffset;
+            const float* normDataPtr = (float*)&(normBuffer.data[normBufferView.byteOffset + normAccessor.byteOffset]);
+            const auto normCount = normAccessor.count;
+            // TODO make support no normal data
+            for (size_t i = 0; i < normCount; ++i) {
+                glm::vec3 norm(normDataPtr[i * 3], normDataPtr[i * 3 + 1], normDataPtr[i * 3 + 2]);
+                this->vertNormals.push_back(norm);
+            }
+                
+            tinygltf::Accessor& indexAccessor = model.accessors[prim.indices];
+            tinygltf::BufferView& indexBufferView = model.bufferViews[indexAccessor.bufferView];
+            tinygltf::Buffer& indexBuffer = model.buffers[indexBufferView.buffer];
+            
+            //const auto indexDataPtr = indexBuffer.data.data() + indexBufferView.byteOffset + indexAccessor.byteOffset;
+            // TODO have to do something to make types agnostic
+            const uint16_t* indexDataPtr = (uint16_t*)&(indexBuffer.data[indexBufferView.byteOffset + indexAccessor.byteOffset]);
+            const auto indexCount = indexAccessor.count;
+            
+            
+            
+            for (size_t i = 0; i < indexCount; i += 3) {
+                Triangle tri;
+                for (int j = 0; j < 3; ++j) {
+
+                    tri.posIndices[j] = vertStartidx + static_cast<int>(indexDataPtr[i + j]);
+                    tri.normIndices[j] = vertStartidx + static_cast<int>(indexDataPtr[i + j]);
+
+                }
+                this->meshTriangles.push_back(tri);
+            }
         }
     }
 
     // placeholder values to make sure triangle intersection working
-    Triangle tri;
+   /* Triangle tri;
     for (int i = 0; i < 3; ++i) {
         tri.posIndices[i] = i;
         tri.normIndices[i] = i;
 
     }
     this->vertPositions.push_back(glm::vec3(1.f, 1.f, 0.f));
-    this->vertPositions.push_back(glm::vec3(1.f, -1.f, 0.f));
     this->vertPositions.push_back(glm::vec3(-1.f, -1.f, 0.f));
-    this->vertNormals.push_back(glm::vec3(0.f, 0.f, 1.f));
-    this->vertNormals.push_back(glm::vec3(0.f, 0.f, 1.f));
-    this->vertNormals.push_back(glm::vec3(0.f, 0.f, 1.f));
-    this->meshTriangles.push_back(tri);
+    this->vertPositions.push_back(glm::vec3(1.f, -1.f, 0.f));
+    this->vertNormals.push_back(glm::vec3(0.f, 0.f, -1.f));
+    this->vertNormals.push_back(glm::vec3(0.f, 0.f, -1.f));
+    this->vertNormals.push_back(glm::vec3(0.f, 0.f, -1.f));
+    this->meshTriangles.push_back(tri);*/
 
     geom.triEnd = this->meshTriangles.size();
 

@@ -95,7 +95,7 @@
             "TRANS":[0.0,0.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[3.0,3.0,3.0],
-            "FILE": "../scenes/glTF-Samples/Avocado.glb"
+            "FILE": "../scenes/glTF-Samples/Box.glb"
         }
     ]
 }

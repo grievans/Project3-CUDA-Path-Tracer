@@ -56,6 +56,21 @@ __host__ __device__ float boxIntersectionTest(
     return -1;
 }
 
+
+// bringing over functions from 5610 since I've heard people say these versions are the cause of some precision issues I've had
+// optimized algorithm for solving quadratic equations developed by Dr. Po-Shen Loh -> https://youtu.be/XKBX0r3J-9Y
+// Adapted to root finding (ray t0/t1) for all quadric shapes (sphere, ellipsoid, cylinder, cone, etc.) by Erich Loftis
+__host__ __device__ void solveQuadratic(float A, float B, float C, float& t0, float& t1) {
+    float invA = 1.0 / A;
+    B *= invA;
+    C *= invA;
+    float neg_halfB = -B * 0.5;
+    float u2 = neg_halfB * neg_halfB - C;
+    float u = u2 < 0.0 ? neg_halfB = 0.0 : sqrt(u2);
+    t0 = neg_halfB - u;
+    t1 = neg_halfB + u;
+}
+
 __host__ __device__ float sphereIntersectionTest(
     Geom sphere,
     Ray r,
@@ -63,15 +78,51 @@ __host__ __device__ float sphereIntersectionTest(
     glm::vec3 &normal,
     bool &outside)
 {
-    float radius = .5;
+    float radius = 0.5f;
 
     glm::vec3 ro = multiplyMV(sphere.inverseTransform, glm::vec4(r.origin, 1.0f));
-    glm::vec3 rd = glm::normalize(multiplyMV(sphere.inverseTransform, glm::vec4(r.direction, 0.0f)));
+    
 
+
+#if 0
+    // TODO FIGURE OUT HOW MAKE WORK; still precision issues with other way it seems like?
+    glm::vec3 rd = (multiplyMV(sphere.inverseTransform, glm::vec4(r.direction, 0.0f)));
+    Ray ray;
+    ray.origin = ro;
+    ray.direction = rd;
+    glm::vec3 pos = glm::vec3(0.f);
+
+    //float sphereIntersect(Ray ray, float radius, vec3 pos, out vec3 localNor, out vec2 out_uv, mat4 invT) {
+        //ray.origin = vec3(invT * vec4(ray.origin, 1.));
+        //ray.direction = vec3(invT * vec4(ray.direction, 0.));
+        float t0, t1;
+        glm::vec3 diff = ray.origin - pos;
+        float a = dot(ray.direction, ray.direction);
+        float b = 2.0 * dot(ray.direction, diff);
+        float c = dot(diff, diff) - (radius * radius);
+        solveQuadratic(a, b, c, t0, t1);
+        //normal = t0 > 0.0 ? ray.origin + t0 * ray.direction : ray.origin + t1 * ray.direction;
+        normal = getPointOnRay(ray, t0 > 0.0 ? t0 : t1);
+        //normal = normalize(normal);
+        //normal = normalize(multiplyMV(sphere.))
+
+        glm::vec3 objspaceIntersection = getPointOnRay(ray, t0 > 0.0 ? t0 : t1);
+
+        // TODO just do r.origin + r.direction * t here? instead of converting space again
+        //intersectionPoint = getPointOnRay(r, t0 > 0.0 ? t0 : t1);
+        intersectionPoint = multiplyMV(sphere.transform, glm::vec4(objspaceIntersection, 1.f));
+        //normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
+        normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(normal, 0.f)));
+
+        //out_uv = sphereUVMap(normal);
+        outside = glm::sign(t0) == glm::sign(t1);
+        return t0 > 0.0 ? t0 : t1 > 0.0 ? t1 : -1.f;
+    //}
+#else
+    glm::vec3 rd = glm::normalize(multiplyMV(sphere.inverseTransform, glm::vec4(r.direction, 0.0f)));
     Ray rt;
     rt.origin = ro;
     rt.direction = rd;
-
     float vDotDirection = glm::dot(rt.origin, rt.direction);
     float radicand = vDotDirection * vDotDirection - (glm::dot(rt.origin, rt.origin) - powf(radius, 2));
     if (radicand < 0)
@@ -112,6 +163,7 @@ __host__ __device__ float sphereIntersectionTest(
 #endif
 
     return glm::length(r.origin - intersectionPoint);
+#endif
 }
 
 
@@ -121,30 +173,36 @@ __host__ __device__ float triangleIntersectionTest(const Geom& mesh, const Trian
     // TODO maybe transform verts on CPU side initially before rather than transforming ray here?
 
     glm::vec3 ro = multiplyMV(mesh.inverseTransform, glm::vec4(r.origin, 1.0f));
-    glm::vec3 rd = glm::normalize(multiplyMV(mesh.inverseTransform, glm::vec4(r.direction, 0.0f)));
+    glm::vec3 rd = (multiplyMV(mesh.inverseTransform, glm::vec4(r.direction, 0.0f)));
 
     Ray rt;
     rt.origin = ro;
-    rt.direction = rd;
+    rt.direction = glm::normalize(rd);
 
     const glm::vec3 & v0 = vertPos[tri.posIndices[0]];
     const glm::vec3 & v1 = vertPos[tri.posIndices[1]];
     const glm::vec3 & v2 = vertPos[tri.posIndices[2]];
 
     glm::vec3 bPos;
-    if (!glm::intersectRayTriangle(rt.origin, rt.direction, v0, v1, v2, bPos)) {
+    // TODO intersection still wrong it seems like
+    if (!(glm::intersectRayTriangle(rt.origin, rt.direction, v0, v1, v2, bPos))) {
+    //if (!(glm::intersectRayTriangle(rt.origin, rt.direction, v0, v2, v1, bPos))) {
+    //if (!(glm::intersectRayTriangle(rt.origin, rt.direction, v0, v1, v2, bPos) || glm::intersectRayTriangle(rt.origin, rt.direction, v0, v2, v1, bPos))) {
         return -1.f;
     }
-    //bPos.z = 1.f - bPos.x - bPos.y;
     const glm::vec3 & n0 = vertNorm[tri.normIndices[0]];
     const glm::vec3 & n1 = vertNorm[tri.normIndices[1]];
     const glm::vec3 & n2 = vertNorm[tri.normIndices[2]];
 
     // TODO need to figure out how to do this
     // also maybe need to 
-    glm::vec3 iPos = (bPos.x * v0 + bPos.y * v1 + bPos.z * v2);
+    bPos.z = 1.f - bPos.x - bPos.y;
+    glm::vec3 iPos = (bPos.z * v0 + bPos.x * v1 + bPos.y * v2);
+    //float localDist = glm::length(rt.origin - iPos);
+    //glm::vec3 iPos = (bPos.x * v0 + bPos.y * v1 + bPos.z * v2);
+    iPos = multiplyMV(mesh.transform, glm::vec4(iPos,1.f));
     //normal = (bPos.x * n0 + bPos.y * n1 + bPos.z * n2);
-    normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4((bPos.x * n0 + bPos.y * n1 + bPos.z * n2), 0.f)));
+    normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4((bPos.z * n0 + bPos.x * n1 + bPos.y * n2), 0.f)));
 
     return glm::length(r.origin - iPos);
 }
