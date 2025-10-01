@@ -167,6 +167,39 @@ __host__ __device__ float sphereIntersectionTest(
 }
 
 
+// Möller–Trumbore intersection
+//#define TRIANGLE_EPSILON 0.0000001
+//__host__ __device__ float triangleIntersect(const glm::vec3 &p0, const glm::vec3 &p1, const glm::vec3 &p2,
+//    const glm::vec3 &rayOrigin, const glm::vec3 &rayDirection) {
+//    
+//    glm::vec3 edge1, edge2, h, s, q;
+//    float a, f, u, v;
+//    edge1 = p1 - p0;
+//    edge2 = p2 - p0;
+//    h = cross(rayDirection, edge2);
+//    a = dot(edge1, h);
+//    if (a > -TRIANGLE_EPSILON && a < TRIANGLE_EPSILON) {
+//        return -1.f;    // This ray is parallel to this triangle.
+//    }
+//    f = 1.0 / a;
+//    s = rayOrigin - p0;
+//    u = f * dot(s, h);
+//    if (u < 0.0 || u > 1.0)
+//        return -1.f;
+//    q = cross(s, edge1);
+//    v = f * dot(rayDirection, q);
+//    if (v < 0.0 || u + v > 1.0) {
+//        return -1.f;
+//    }
+//    // At this stage we can compute t to find out where the intersection point is on the line.
+//    float t = f * dot(edge2, q);
+//    if (t > TRIANGLE_EPSILON) {
+//        return t;
+//    }
+//    else // This means that there is a line intersection but not a ray intersection.
+//        return -1.f;
+//}
+
 
 __host__ __device__ float triangleIntersectionTest(const Geom& mesh, const Triangle& tri, const glm::vec3 *vertPos, const glm::vec3 *vertNorm, Ray r, glm::vec3& intersectionPoint, glm::vec3& normal)
 {
@@ -177,15 +210,29 @@ __host__ __device__ float triangleIntersectionTest(const Geom& mesh, const Trian
 
     Ray rt;
     rt.origin = ro;
-    rt.direction = glm::normalize(rd);
+    //rt.direction = (rd);
+    rt.direction = rd;
+    //rt.direction = glm::normalize(rd);
 
     const glm::vec3 & v0 = vertPos[tri.posIndices[0]];
     const glm::vec3 & v1 = vertPos[tri.posIndices[1]];
     const glm::vec3 & v2 = vertPos[tri.posIndices[2]];
 
+    //triangleIntersect(v0, v1, v2, rt.origin, rt.direction);
+    
+
     glm::vec3 bPos;
     // TODO intersection still wrong it seems like
-    if (!(glm::intersectRayTriangle(rt.origin, rt.direction, v0, v1, v2, bPos))) {
+    if (glm::intersectRayTriangle(rt.origin, rt.direction, v0, v1, v2, bPos)) {
+
+    }
+    else if (glm::intersectRayTriangle(rt.origin, rt.direction, v0, v2, v1, bPos)) {
+        //std::swap(bPos.x, bPos.y);
+        float tmp = bPos.x;
+        bPos.x = bPos.y;
+        bPos.y = tmp;
+    } else {
+    //if (!(glm::intersectRayTriangle(rt.origin, rt.direction, v0, v1, v2, bPos))) {
     //if (!(glm::intersectRayTriangle(rt.origin, rt.direction, v0, v2, v1, bPos))) {
     //if (!(glm::intersectRayTriangle(rt.origin, rt.direction, v0, v1, v2, bPos) || glm::intersectRayTriangle(rt.origin, rt.direction, v0, v2, v1, bPos))) {
         return -1.f;
@@ -196,13 +243,21 @@ __host__ __device__ float triangleIntersectionTest(const Geom& mesh, const Trian
 
     // TODO need to figure out how to do this
     // also maybe need to 
-    bPos.z = 1.f - bPos.x - bPos.y;
-    glm::vec3 iPos = (bPos.z * v0 + bPos.x * v1 + bPos.y * v2);
+    //std::swap(bPos.x, bPos.y);
+    //printf("%f == %f %f\n", bPos.z, 1.f - bPos.x - bPos.y, bPos.z == 1.f - bPos.x - bPos.y);
+    //bPos.z = 1.f - bPos.x - bPos.y;
+    float w = 1.f - bPos.x - bPos.y;
+    //printf("%f %f %f %f\n", bPos.z, bPos.x, bPos.y, bPos.x + bPos.y + bPos.z);
+    //glm::vec3 iPos = (w * v0 + bPos.x * v1 + bPos.y * v2);
     //float localDist = glm::length(rt.origin - iPos);
     //glm::vec3 iPos = (bPos.x * v0 + bPos.y * v1 + bPos.z * v2);
-    iPos = multiplyMV(mesh.transform, glm::vec4(iPos,1.f));
-    //normal = (bPos.x * n0 + bPos.y * n1 + bPos.z * n2);
-    normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4((bPos.z * n0 + bPos.x * n1 + bPos.y * n2), 0.f)));
+    //iPos = multiplyMV(mesh.transform, glm::vec4(iPos,1.f));
+    //intersectionPoint = iPos;
 
-    return glm::length(r.origin - iPos);
+    intersectionPoint = r.origin + r.direction * bPos.z;
+    //normal = (bPos.z * n0 + bPos.x * n1 + bPos.y * n2);
+    //normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(n0, 0.f)));
+    normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4((w * n0 + bPos.x * n1 + bPos.y * n2), 0.f)));
+    //return 0.2f;
+    return glm::length(r.origin - intersectionPoint);
 }

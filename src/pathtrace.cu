@@ -141,9 +141,9 @@ void pathtraceFree()
     checkCUDAError("pathtraceFree");
 }
 
-#define USE_DOF 0
-#define LENS_RADIUS 0.5f
-#define FOCAL_DISTANCE 10.f
+#define USE_DOF 1
+#define LENS_RADIUS 0.05f
+#define FOCAL_DISTANCE 3.f
 // TODO maybe make configurable in JSONs^
 
 #if USE_DOF
@@ -277,7 +277,15 @@ __global__ void computeIntersections(
             else if (geom.type == MESH) {
                 for (int j = geom.triStart; j < geom.triEnd; ++j) {
                     t = triangleIntersectionTest(geom, triangles[j], vertPositions, vertNormals, pathSegment.ray, tmp_intersect, tmp_normal);
+                    if (t > 0.0f && t_min > t)
+                    {
+                        t_min = t;
+                        hit_geom_index = i;
+                        intersect_point = tmp_intersect;
+                        normal = tmp_normal;
+                    }
 
+                    // TODO remove redundant case
                 }
             }
             // TODO: add more intersection tests here... triangle? metaball? CSG?

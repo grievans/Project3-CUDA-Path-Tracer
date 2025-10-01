@@ -251,8 +251,8 @@ void Scene::loadFromGLTF(Geom& geom, const std::string& gltfName)
     tinygltf::Model model;
 
     // TODO read file path to check if binary vs. ASCII?
-    bool res = loader.LoadASCIIFromFile(&model, &err, &warn, gltfName);
-    //bool res = loader.LoadBinaryFromFile(&model, &err, &warn, gltfName);
+    //bool res = loader.LoadASCIIFromFile(&model, &err, &warn, gltfName);
+    bool res = loader.LoadBinaryFromFile(&model, &err, &warn, gltfName);
     if (!warn.empty()) {
         std::cout << "WARN: " << warn << std::endl;
     }
@@ -292,6 +292,7 @@ void Scene::loadFromGLTF(Geom& geom, const std::string& gltfName)
                 glm::vec3 pos(posDataPtr[i * 3], posDataPtr[i * 3 + 1], posDataPtr[i * 3 + 2]);
                 //pos *= 100.f;
                 this->vertPositions.push_back(pos);
+                //std::cout << pos.x << " " << pos.y << " " << pos.z << std::endl;
             }
 
 
@@ -317,7 +318,7 @@ void Scene::loadFromGLTF(Geom& geom, const std::string& gltfName)
             const uint16_t* indexDataPtr = (uint16_t*)&(indexBuffer.data[indexBufferView.byteOffset + indexAccessor.byteOffset]);
             const auto indexCount = indexAccessor.count;
             
-            
+            // TODO issues when loading avocado model I think to do with indices being set wrong
             
             for (size_t i = 0; i < indexCount; i += 3) {
                 Triangle tri;
@@ -325,10 +326,13 @@ void Scene::loadFromGLTF(Geom& geom, const std::string& gltfName)
 
                     tri.posIndices[j] = vertStartidx + static_cast<int>(indexDataPtr[i + j]);
                     tri.normIndices[j] = vertStartidx + static_cast<int>(indexDataPtr[i + j]);
+                    //std::cout << vertStartidx + static_cast<int>(indexDataPtr[i + j]) << std::endl;
 
                 }
                 this->meshTriangles.push_back(tri);
             }
+            std::cout << "Points loaded: " << posCount << std::endl;
+            std::cout << "Triangles loaded: " << indexCount / 3 << std::endl;
         }
     }
 
