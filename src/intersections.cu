@@ -222,6 +222,7 @@ __host__ __device__ float triangleIntersectionTest(const Geom& mesh, const Trian
     
 
     glm::vec3 bPos;
+    bool flip = false;
     // TODO intersection still wrong it seems like
     if (glm::intersectRayTriangle(rt.origin, rt.direction, v0, v1, v2, bPos)) {
 
@@ -231,22 +232,34 @@ __host__ __device__ float triangleIntersectionTest(const Geom& mesh, const Trian
         float tmp = bPos.x;
         bPos.x = bPos.y;
         bPos.y = tmp;
+        flip = true;
     } else {
     //if (!(glm::intersectRayTriangle(rt.origin, rt.direction, v0, v1, v2, bPos))) {
     //if (!(glm::intersectRayTriangle(rt.origin, rt.direction, v0, v2, v1, bPos))) {
     //if (!(glm::intersectRayTriangle(rt.origin, rt.direction, v0, v1, v2, bPos) || glm::intersectRayTriangle(rt.origin, rt.direction, v0, v2, v1, bPos))) {
         return -1.f;
     }
-    const glm::vec3 & n0 = vertNorm[tri.normIndices[0]];
-    const glm::vec3 & n1 = vertNorm[tri.normIndices[1]];
-    const glm::vec3 & n2 = vertNorm[tri.normIndices[2]];
+    intersectionPoint = r.origin + r.direction * bPos.z;
+    if (tri.normIndices[0] == -1) {
+        glm::vec3 d1 = flip ? v2 - v0 : v1 - v0;
+        glm::vec3 d2 = flip ? v1 - v0 : v2 - v0;
+        normal = glm::normalize(glm::cross(d1, d2));
+        //normal = glm::normalize(flip ? glm::cross(glm::normalize(v2 - v0), glm::normalize(v1 - v0)) : glm::cross(glm::normalize(v1 - v0), glm::normalize(v2 - v0)));
+    }
+    else {
+        const glm::vec3 &n0 = vertNorm[tri.normIndices[0]];
+        const glm::vec3& n1 = vertNorm[tri.normIndices[1]];
+        const glm::vec3& n2 = vertNorm[tri.normIndices[2]];
+        float w = 1.f - bPos.x - bPos.y;
+        normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4((w * n0 + bPos.x * n1 + bPos.y * n2), 0.f)));
 
+    }
     // TODO need to figure out how to do this
     // also maybe need to 
     //std::swap(bPos.x, bPos.y);
     //printf("%f == %f %f\n", bPos.z, 1.f - bPos.x - bPos.y, bPos.z == 1.f - bPos.x - bPos.y);
     //bPos.z = 1.f - bPos.x - bPos.y;
-    float w = 1.f - bPos.x - bPos.y;
+    
     //printf("%f %f %f %f\n", bPos.z, bPos.x, bPos.y, bPos.x + bPos.y + bPos.z);
     //glm::vec3 iPos = (w * v0 + bPos.x * v1 + bPos.y * v2);
     //float localDist = glm::length(rt.origin - iPos);
@@ -254,10 +267,9 @@ __host__ __device__ float triangleIntersectionTest(const Geom& mesh, const Trian
     //iPos = multiplyMV(mesh.transform, glm::vec4(iPos,1.f));
     //intersectionPoint = iPos;
 
-    intersectionPoint = r.origin + r.direction * bPos.z;
+    
     //normal = (bPos.z * n0 + bPos.x * n1 + bPos.y * n2);
     //normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(n0, 0.f)));
-    normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4((w * n0 + bPos.x * n1 + bPos.y * n2), 0.f)));
     //return 0.2f;
     return glm::length(r.origin - intersectionPoint);
 }

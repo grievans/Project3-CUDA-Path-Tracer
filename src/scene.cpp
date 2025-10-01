@@ -151,7 +151,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
                     this->minT = t;
                 }
                 newFrames.push_back(frame);
-                
+
 
             }
             if (type == "cube")
@@ -204,7 +204,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
         }
         geoms.push_back(newGeom);
         geomFrames.push_back(newFrames);
-        
+
 
     }
     const auto& cameraData = data["Camera"];
@@ -241,6 +241,8 @@ void Scene::loadFromJSON(const std::string& jsonName)
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
 }
 
+
+
 void Scene::loadFromGLTF(Geom& geom, const std::string& gltfName)
 {
     //following examples/basic/main in tinygltf
@@ -250,9 +252,18 @@ void Scene::loadFromGLTF(Geom& geom, const std::string& gltfName)
 
     tinygltf::Model model;
 
-    // TODO read file path to check if binary vs. ASCII?
-    //bool res = loader.LoadASCIIFromFile(&model, &err, &warn, gltfName);
-    bool res = loader.LoadBinaryFromFile(&model, &err, &warn, gltfName);
+    //TODO avocado still seems to not work properly?; fox and box fine though
+
+    bool res;
+    bool glbUsed = gltfName.substr(gltfName.size() - 4, 4) == ".glb";
+    if (glbUsed) {
+        res = loader.LoadBinaryFromFile(&model, &err, &warn, gltfName);
+
+    }
+    else {
+        res = loader.LoadASCIIFromFile(&model, &err, &warn, gltfName);
+
+    }
     if (!warn.empty()) {
         std::cout << "WARN: " << warn << std::endl;
     }
@@ -262,9 +273,9 @@ void Scene::loadFromGLTF(Geom& geom, const std::string& gltfName)
     }
 
     if (!res)
-        std::cout << "Failed to load glTF: " << gltfName << std::endl;
+        std::cout << "Failed to load " << (glbUsed ? "glb: " : "glTF: ") << gltfName << std::endl;
     else
-        std::cout << "Loaded glTF: " << gltfName << std::endl;
+        std::cout << "Loaded " << (glbUsed ? "glb: " : "glTF: ") << gltfName << std::endl;
 
 
     geom.triStart = this->meshTriangles.size();
@@ -295,45 +306,66 @@ void Scene::loadFromGLTF(Geom& geom, const std::string& gltfName)
                 //std::cout << pos.x << " " << pos.y << " " << pos.z << std::endl;
             }
 
+            bool hasNormals = false;
+            if (prim.attributes.find("NORMAL") != prim.attributes.end()) {
 
-            tinygltf::Accessor& normAccessor = model.accessors[prim.attributes.at("NORMAL")];
-            tinygltf::BufferView& normBufferView = model.bufferViews[normAccessor.bufferView];
-            tinygltf::Buffer& normBuffer = model.buffers[normBufferView.buffer];
+                tinygltf::Accessor& normAccessor = model.accessors[prim.attributes.at("NORMAL")];
+                tinygltf::BufferView& normBufferView = model.bufferViews[normAccessor.bufferView];
+                tinygltf::Buffer& normBuffer = model.buffers[normBufferView.buffer];
 
-            //const auto normDataPtr = normBuffer.data.data() + normBufferView.byteOffset + normAccessor.byteOffset;
-            const float* normDataPtr = (float*)&(normBuffer.data[normBufferView.byteOffset + normAccessor.byteOffset]);
-            const auto normCount = normAccessor.count;
-            // TODO make support no normal data
-            for (size_t i = 0; i < normCount; ++i) {
-                glm::vec3 norm(normDataPtr[i * 3], normDataPtr[i * 3 + 1], normDataPtr[i * 3 + 2]);
-                this->vertNormals.push_back(norm);
+                //const auto normDataPtr = normBuffer.data.data() + normBufferView.byteOffset + normAccessor.byteOffset;
+                const float* normDataPtr = (float*)&(normBuffer.data[normBufferView.byteOffset + normAccessor.byteOffset]);
+                const auto normCount = normAccessor.count;
+                // TODO make support no normal data
+                for (size_t i = 0; i < normCount; ++i) {
+                    glm::vec3 norm(normDataPtr[i * 3], normDataPtr[i * 3 + 1], normDataPtr[i * 3 + 2]);
+                    this->vertNormals.push_back(norm);
+                }
+                hasNormals = true;
             }
                 
-            tinygltf::Accessor& indexAccessor = model.accessors[prim.indices];
-            tinygltf::BufferView& indexBufferView = model.bufferViews[indexAccessor.bufferView];
-            tinygltf::Buffer& indexBuffer = model.buffers[indexBufferView.buffer];
+            if (prim.indices > 0) {
+                tinygltf::Accessor& indexAccessor = model.accessors[prim.indices];
+                tinygltf::BufferView& indexBufferView = model.bufferViews[indexAccessor.bufferView];
+                tinygltf::Buffer& indexBuffer = model.buffers[indexBufferView.buffer];
             
-            //const auto indexDataPtr = indexBuffer.data.data() + indexBufferView.byteOffset + indexAccessor.byteOffset;
-            // TODO have to do something to make types agnostic
-            const uint16_t* indexDataPtr = (uint16_t*)&(indexBuffer.data[indexBufferView.byteOffset + indexAccessor.byteOffset]);
-            const auto indexCount = indexAccessor.count;
+                //const auto indexDataPtr = indexBuffer.data.data() + indexBufferView.byteOffset + indexAccessor.byteOffset;
+                // TODO have to do something to make types agnostic
+                const uint16_t* indexDataPtr = (uint16_t*)&(indexBuffer.data[indexBufferView.byteOffset + indexAccessor.byteOffset]);
+                const auto indexCount = indexAccessor.count;
             
-            // TODO issues when loading avocado model I think to do with indices being set wrong
+                // TODO issues when loading avocado model I think to do with indices being set wrong
             
-            for (size_t i = 0; i < indexCount; i += 3) {
-                Triangle tri;
-                for (int j = 0; j < 3; ++j) {
+                for (int i = 0; i < indexCount; i += 3) {
+                    Triangle tri;
+                    for (int j = 0; j < 3; ++j) {
 
-                    tri.posIndices[j] = vertStartidx + static_cast<int>(indexDataPtr[i + j]);
-                    tri.normIndices[j] = vertStartidx + static_cast<int>(indexDataPtr[i + j]);
-                    //std::cout << vertStartidx + static_cast<int>(indexDataPtr[i + j]) << std::endl;
+                        tri.posIndices[j] = vertStartidx + static_cast<int>(indexDataPtr[i + j]);
+                        tri.normIndices[j] = hasNormals ? vertStartidx + static_cast<int>(indexDataPtr[i + j]) : -1;
+                        //std::cout << vertStartidx + static_cast<int>(indexDataPtr[i + j]) << std::endl;
 
+                    }
+                    this->meshTriangles.push_back(tri);
                 }
-                this->meshTriangles.push_back(tri);
+                std::cout << "Triangles loaded: " << indexCount / 3 << std::endl;
+            }
+            else {
+                for (int i = 0; i < posCount; i += 3) {
+                    Triangle tri;
+                    for (int j = 0; j < 3; ++j) {
+
+                        tri.posIndices[j] = vertStartidx + i + j;
+                        tri.normIndices[j] = hasNormals ? vertStartidx + i + j : -1;
+                        //std::cout << vertStartidx + static_cast<int>(indexDataPtr[i + j]) << std::endl;
+
+                    }
+                    this->meshTriangles.push_back(tri);
+                }
+                std::cout << "Triangles loaded (w/o explicit indices): " << posCount / 3 << std::endl;
             }
             std::cout << "Points loaded: " << posCount << std::endl;
-            std::cout << "Triangles loaded: " << indexCount / 3 << std::endl;
         }
+        
     }
 
     // placeholder values to make sure triangle intersection working

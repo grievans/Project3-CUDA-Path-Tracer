@@ -145,6 +145,7 @@ void pathtraceFree()
 #define LENS_RADIUS 0.05f
 #define FOCAL_DISTANCE 3.f
 // TODO maybe make configurable in JSONs^
+//  TODO maybe have GUI option to change, but also have option to "auto focus" focal distance on point looked at
 
 #if USE_DOF
 __host__ __device__ glm::vec2 sampleUniformDiskConcentric(glm::vec2 u) {
