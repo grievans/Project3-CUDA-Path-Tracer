@@ -324,24 +324,55 @@ void Scene::loadFromGLTF(Geom& geom, const std::string& gltfName)
                 hasNormals = true;
             }
                 
-            if (prim.indices > 0) {
+            if (prim.indices >= 0) {
                 tinygltf::Accessor& indexAccessor = model.accessors[prim.indices];
                 tinygltf::BufferView& indexBufferView = model.bufferViews[indexAccessor.bufferView];
                 tinygltf::Buffer& indexBuffer = model.buffers[indexBufferView.buffer];
             
                 //const auto indexDataPtr = indexBuffer.data.data() + indexBufferView.byteOffset + indexAccessor.byteOffset;
-                // TODO have to do something to make types agnostic
-                const uint16_t* indexDataPtr = (uint16_t*)&(indexBuffer.data[indexBufferView.byteOffset + indexAccessor.byteOffset]);
                 const auto indexCount = indexAccessor.count;
-            
-                // TODO issues when loading avocado model I think to do with indices being set wrong
-            
-                for (int i = 0; i < indexCount; i += 3) {
-                    Triangle tri;
-                    for (int j = 0; j < 3; ++j) {
+                std::cout << "Indices to load: " << indexCount << std::endl;
+                std::vector<int> indexDataVec;
+                indexDataVec.reserve(indexCount);
+                size_t stride = indexBufferView.byteStride ? static_cast<size_t>(indexBufferView.byteStride) : 0;
+                const unsigned char* data = indexBuffer.data.data() + indexBufferView.byteOffset + indexAccessor.byteOffset;
+                // TODO this works for several of the models fine but the avocado is still bad
+                if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
+                    //const uint16_t* indexDataPtr = reinterpret_cast<uint16_t*>(indexBuffer.data.data() + indexBufferView.byteOffset + indexAccessor.byteOffset);
+                    stride = stride ? stride : sizeof(uint16_t);
+                    for (size_t i = 0; i < indexCount; ++i) {
+                        //const uint16_t* ptr = reinterpret_cast<const uint16_t*>(data + i * stride);
+                        //indexDataVec.push_back(static_cast<int>(*ptr));
+                        /*std::cout << static_cast<int>(static_cast<uint8_t>(*(data + i * stride))) << " " << static_cast<int>(static_cast<uint8_t>(*(data + i * stride + 1))) << " " << static_cast<uint32_t>(*ptr)
+                            << " " << static_cast<int>(*reinterpret_cast<const uint16_t*>(data + i * stride)) << std::endl;*/
+                        //std::cout << static_cast<uint32_t>(*(reinterpret_cast<const uint16_t*>(data + i * stride)))
+                            //<< static_cast<int>(*(reinterpret_cast<const uint16_t*>(data + i * stride))) << std::endl;
+                        //indexDataVec.push_back(static_cast<int>(indexDataPtr[i]));
+                        indexDataVec.push_back(static_cast<int>(*reinterpret_cast<const uint16_t*>(data + i * stride)));
+                    }
+                    std::cout << "Loading indices as TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT" << std::endl;
+                } else if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) {
+                    //const uint32_t* indexDataPtr = reinterpret_cast<uint32_t*>(indexBuffer.data.data() + indexBufferView.byteOffset + indexAccessor.byteOffset);
+                    stride = stride ? stride : sizeof(uint32_t);
+                    for (size_t i = 0; i < indexCount; ++i) {
+                        //indexDataVec.push_back(static_cast<int>(indexDataPtr[i * stride]));
+                        indexDataVec.push_back(static_cast<int>(*reinterpret_cast<const uint32_t*>(data + i * stride)));
 
-                        tri.posIndices[j] = vertStartidx + static_cast<int>(indexDataPtr[i + j]);
-                        tri.normIndices[j] = hasNormals ? vertStartidx + static_cast<int>(indexDataPtr[i + j]) : -1;
+                    }
+                    std::cout << "Loading indices as TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT" << std::endl;
+
+                } else {
+                    std::cout << "Unsupported index type: " << indexAccessor.componentType << std::endl;
+                    return;
+                }
+            
+            
+                for (size_t i = 0; i < indexCount; i += 3) {
+                    Triangle tri;
+                    for (size_t j = 0; j < 3; ++j) {
+
+                        tri.posIndices[j] = vertStartidx + (indexDataVec[i + j]);
+                        tri.normIndices[j] = hasNormals ? vertStartidx + (indexDataVec[i + j]) : -1;
                         //std::cout << vertStartidx + static_cast<int>(indexDataPtr[i + j]) << std::endl;
 
                     }

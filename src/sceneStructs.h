@@ -122,4 +122,5 @@ struct Triangle {
     int normIndices[3];
     
     // TODO materials and such once I do texture loading
+    // TODO store normal indices in same as pos indices? since same values here
 };

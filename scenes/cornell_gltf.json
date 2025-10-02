@@ -94,8 +94,8 @@
             "MATERIAL":"diffuse_bright_blue",
             "TRANS":[0.0,1.0,0.0],
             "ROTAT":[0.0,-45.0,0.0],
-            "SCALE":[0.06,0.06,0.06],
-            "FILE": "../scenes/glTF-Samples/fox/Fox.gltf"
+            "SCALE":[3.0,3.0,3.0],
+            "FILE": "../scenes/glTF-Samples/Box.glb"
         }
     ]
 }
