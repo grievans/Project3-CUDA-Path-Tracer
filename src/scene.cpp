@@ -61,6 +61,42 @@ void Scene::updateGeoms(float time)
             g->invTranspose = glm::inverseTranspose(g->transform);
         }
     }
+    for (int index = 0; index < this->meshGeoms.size(); ++index) {
+        Geom* g = &(this->meshGeoms.at(index));
+        std::vector<KeyFrame>& frames = this->meshGeomFrames.at(index);
+        //AnimGeom* ag = dynamic_cast<AnimGeom*>(g);
+
+        if (frames.size() > 1) {
+            KeyFrame* f0 = &(frames[0]);
+            KeyFrame* f1 = &(frames[1]);
+            for (unsigned int i = 1; i < frames.size(); ++i) {
+                if (frames[i].key >= time) {
+                    f0 = &(frames[i - 1]);
+                    f1 = &(frames[i]);
+                    break;
+                }
+            }
+            float u = (time - f0->key) / (f1->key - f0->key);
+            g->translation = glm::mix(f0->translation, f1->translation, u);
+            // TODO SLERP?
+            g->rotation = glm::mix(f0->rotation, f1->rotation, u);
+            g->scale = glm::mix(f0->scale, f1->scale, u);
+
+
+            g->transform = utilityCore::buildTransformationMatrix(
+                g->translation, g->rotation, g->scale);
+            g->inverseTransform = glm::inverse(g->transform);
+            g->invTranspose = glm::inverseTranspose(g->transform);
+        }
+
+        // TODO update triangles
+    }
+    transformTriangles();
+#if USE_BVH
+    subdivide(0);
+#endif
+
+
     return;
 }
 
@@ -154,27 +190,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
 
             }
-            if (type == "cube")
-            {
-                newGeom.type = CUBE;
-            }
-            else
-            {
-                newGeom.type = SPHERE;
-            }
             newGeom.materialid = MatNameToID[p["MATERIAL"]];
-
-            newGeom.translation = newFrames[0].translation;
-            newGeom.rotation = newFrames[0].rotation;
-            newGeom.scale = newFrames[0].scale;
-            newGeom.transform = utilityCore::buildTransformationMatrix(
-                newGeom.translation, newGeom.rotation, newGeom.scale);
-            newGeom.inverseTransform = glm::inverse(newGeom.transform);
-            newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
-
-            //geoms.push_back(newGeom);
-        }
-        else {
             if (type == "cube")
             {
                 newGeom.type = CUBE;
@@ -188,7 +204,34 @@ void Scene::loadFromJSON(const std::string& jsonName)
             {
                 newGeom.type = SPHERE;
             }
+            
+
+            newGeom.translation = newFrames[0].translation;
+            newGeom.rotation = newFrames[0].rotation;
+            newGeom.scale = newFrames[0].scale;
+            newGeom.transform = utilityCore::buildTransformationMatrix(
+                newGeom.translation, newGeom.rotation, newGeom.scale);
+            newGeom.inverseTransform = glm::inverse(newGeom.transform);
+            newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
+
+            //geoms.push_back(newGeom);
+        }
+        else {
             newGeom.materialid = MatNameToID[p["MATERIAL"]];
+            if (type == "cube")
+            {
+                newGeom.type = CUBE;
+            }
+            else if (type == "gltf") {
+                newGeom.type = MESH;
+                const auto& file = p["FILE"];
+                loadFromGLTF(newGeom, file);
+            }
+            else
+            {
+                newGeom.type = SPHERE;
+            }
+            
             const auto& trans = p["TRANS"];
             const auto& rotat = p["ROTAT"];
             const auto& scale = p["SCALE"];
@@ -202,11 +245,23 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
 
         }
-        geoms.push_back(newGeom);
-        geomFrames.push_back(newFrames);
+        if (newGeom.type == MESH) {
+            meshGeoms.push_back(newGeom);
+            meshGeomFrames.push_back(newFrames);
+        }
+        else {
+            geoms.push_back(newGeom);
+            geomFrames.push_back(newFrames);
+        }
 
 
     }
+    this->vertPositions.resize(this->originalVertPositions.size());
+    this->vertNormals.resize(this->originalVertNormals.size());
+    this->transformTriangles();
+#if USE_BVH
+    this->subdivide(0);
+#endif
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;
     RenderState& state = this->state;
@@ -278,8 +333,9 @@ void Scene::loadFromGLTF(Geom& geom, const std::string& gltfName)
         std::cout << "Loaded " << (glbUsed ? "glb: " : "glTF: ") << gltfName << std::endl;
 
 
-    geom.triStart = this->meshTriangles.size();
-
+    //geom.triStart = this->meshTriangles.size();
+    geom.pointStart = this->originalVertPositions.size();
+    geom.normStart = this->originalVertNormals.size();
     // TODO
 
     for (const auto& mesh : model.meshes) {
@@ -297,12 +353,12 @@ void Scene::loadFromGLTF(Geom& geom, const std::string& gltfName)
             //const auto posByteStride = posAccessor.ByteStride(posBufferView);
             const auto posCount = posAccessor.count;
 
-            int vertStartidx = this->vertPositions.size();
+            int vertStartidx = this->originalVertPositions.size();
 
             for (size_t i = 0; i < posCount; ++i) {
                 glm::vec3 pos(posDataPtr[i * 3], posDataPtr[i * 3 + 1], posDataPtr[i * 3 + 2]);
                 //pos *= 100.f;
-                this->vertPositions.push_back(pos);
+                this->originalVertPositions.push_back(pos);
                 //std::cout << pos.x << " " << pos.y << " " << pos.z << std::endl;
             }
 
@@ -319,7 +375,7 @@ void Scene::loadFromGLTF(Geom& geom, const std::string& gltfName)
                 // TODO make support no normal data
                 for (size_t i = 0; i < normCount; ++i) {
                     glm::vec3 norm(normDataPtr[i * 3], normDataPtr[i * 3 + 1], normDataPtr[i * 3 + 2]);
-                    this->vertNormals.push_back(norm);
+                    this->originalVertNormals.push_back(norm);
                 }
                 hasNormals = true;
             }
@@ -375,6 +431,7 @@ void Scene::loadFromGLTF(Geom& geom, const std::string& gltfName)
                         tri.posIndices[j] = vertStartidx + (indexDataVec[i + j]);
                         tri.normIndices[j] = hasNormals ? vertStartidx + (indexDataVec[i + j]) : -1;
                         //std::cout << vertStartidx + static_cast<int>(indexDataPtr[i + j]) << std::endl;
+                        tri.materialid = geom.materialid;
 
                     }
                     this->meshTriangles.push_back(tri);
@@ -389,6 +446,7 @@ void Scene::loadFromGLTF(Geom& geom, const std::string& gltfName)
                         tri.posIndices[j] = vertStartidx + i + j;
                         tri.normIndices[j] = hasNormals ? vertStartidx + i + j : -1;
                         //std::cout << vertStartidx + static_cast<int>(indexDataPtr[i + j]) << std::endl;
+                        tri.materialid = geom.materialid;
 
                     }
                     this->meshTriangles.push_back(tri);
@@ -407,17 +465,19 @@ void Scene::loadFromGLTF(Geom& geom, const std::string& gltfName)
         tri.normIndices[i] = i;
 
     }
-    this->vertPositions.push_back(glm::vec3(1.f, 1.f, 0.f));
-    this->vertPositions.push_back(glm::vec3(-1.f, -1.f, 0.f));
-    this->vertPositions.push_back(glm::vec3(1.f, -1.f, 0.f));
-    this->vertNormals.push_back(glm::vec3(0.f, 0.f, -1.f));
-    this->vertNormals.push_back(glm::vec3(0.f, 0.f, -1.f));
-    this->vertNormals.push_back(glm::vec3(0.f, 0.f, -1.f));
+    this->originalVertPositions.push_back(glm::vec3(1.f, 1.f, 0.f));
+    this->originalVertPositions.push_back(glm::vec3(-1.f, -1.f, 0.f));
+    this->originalVertPositions.push_back(glm::vec3(1.f, -1.f, 0.f));
+    this->originalVertNormals.push_back(glm::vec3(0.f, 0.f, -1.f));
+    this->originalVertNormals.push_back(glm::vec3(0.f, 0.f, -1.f));
+    this->originalVertNormals.push_back(glm::vec3(0.f, 0.f, -1.f));
     this->meshTriangles.push_back(tri);*/
 
-    // TODO apply transformations here and remove from intersections.cu
 
-    geom.triEnd = this->meshTriangles.size();
+
+    geom.pointEnd = this->originalVertPositions.size();
+    geom.normEnd = this->originalVertNormals.size();
+    //geom.triEnd = this->meshTriangles.size();
 
 }
 
@@ -509,4 +569,25 @@ void Scene::subdivide(unsigned int nodeIdx) {
     subdivide(rightChildIdx);
 
 
+}
+
+void Scene::transformTriangles()
+{
+    for (int index = 0; index < this->meshGeoms.size(); ++index) {
+        Geom* g = &(this->meshGeoms.at(index));
+
+        for (int p = g->pointStart; p < g->pointEnd; ++p) {
+            vertPositions[p] = glm::vec3(g->transform * glm::vec4(originalVertPositions[p], 1.f));
+        }
+        for (int p = g->normStart; p < g->normEnd; ++p) {
+            vertNormals[p] = glm::vec3(g->transform * glm::vec4(originalVertNormals[p], 0.f));
+        }
+        //for (int triIndex = g->triStart; triIndex < g->triEnd; ++triIndex) {
+            //const Triangle& tri = meshTriangles[triIndex];
+            //for (int j = 0; j < 3; ++j) {
+                //vertPositions[tri.posIndices[j]] = glm::vec3(g->transform * glm::vec4(originalVertPositions[tri], 1.f));
+                //vertNormals[tri] = glm::vec3(g->transform * glm::vec4(originalVertNormals[tri], 0.f));
+            //}
+        //}
+    }
 }

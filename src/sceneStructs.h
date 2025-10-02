@@ -44,8 +44,14 @@ struct Geom
     glm::mat4 invTranspose;
     //virtual void update(float time);
     //std::vector<KeyFrame> frames;
-    int triStart;
-    int triEnd;
+    //int triStart;
+    //int triEnd;
+    
+    // TODO split into separate class?
+    int pointStart;
+    int normStart;
+    int pointEnd;
+    int normEnd;
 };
 
 
@@ -124,6 +130,7 @@ struct Triangle {
     // TODO materials and such once I do texture loading
     // TODO store normal indices in same as pos indices? since same values here
     glm::vec3 centroid; // TODO do I wanna store elsewhere since not needed I think on gpu side?
+    int materialid;
 
     // TODO need to store materials etc. within triangles rather than per mesh if wanting to do texturing later and also if wanting to facilitate loading multiple gltfs well for BVH
     // TODO maybe just storing positions directly actually is better? less steps of reading needed

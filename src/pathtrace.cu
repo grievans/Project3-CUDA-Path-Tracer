@@ -87,6 +87,8 @@ static Triangle* dev_triangles = NULL;
 static glm::vec3* dev_vertPositions = NULL;
 static glm::vec3* dev_vertNormals = NULL;
 
+static BVHNode* dev_bvhNode = NULL;
+
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
     guiData = imGuiData;
@@ -124,6 +126,9 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_vertNormals, scene->vertNormals.size() * sizeof(glm::vec3));
     cudaMemcpy(dev_vertNormals, scene->vertNormals.data(), scene->vertNormals.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+    
+    cudaMalloc(&dev_bvhNode, scene->bvhNode.size() * sizeof(BVHNode));
+    cudaMemcpy(dev_bvhNode, scene->bvhNode.data(), scene->bvhNode.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);
 
 
     checkCUDAError("pathtraceInit");
@@ -140,6 +145,7 @@ void pathtraceFree()
     cudaFree(dev_triangles);
     cudaFree(dev_vertPositions);
     cudaFree(dev_vertNormals);
+    cudaFree(dev_bvhNode);
 
     checkCUDAError("pathtraceFree");
 }
@@ -245,6 +251,7 @@ __global__ void computeIntersections(
     int geoms_size,
     ShadeableIntersection* intersections,
     Triangle* triangles,
+    int triangles_size,
     glm::vec3* vertPositions,
     glm::vec3* vertNormals)
 {
@@ -264,6 +271,8 @@ __global__ void computeIntersections(
         glm::vec3 tmp_intersect;
         glm::vec3 tmp_normal;
 
+        bool hit_triangle = false;
+
         // naive parse through global geoms
 
         for (int i = 0; i < geoms_size; ++i)
@@ -278,6 +287,7 @@ __global__ void computeIntersections(
             {
                 t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
             }
+#if 0
             else if (geom.type == MESH) {
                 // TODO tweak to make per-triangle instead
 
@@ -296,6 +306,7 @@ __global__ void computeIntersections(
                     // TODO remove redundant case
                 }
             }
+#endif
             // TODO: add more intersection tests here... triangle? metaball? CSG?
 
             // Compute the minimum t from the intersection tests to determine what
@@ -310,6 +321,22 @@ __global__ void computeIntersections(
         }
 
 
+#if USE_BVH
+
+#else
+        for (int i = 0; i < triangles_size; ++i) {
+            t = triangleIntersectionTestPretransformed(triangles[i], vertPositions, vertNormals, pathSegment.ray, tmp_intersect, tmp_normal);
+            if (t > 0.0f && t_min > t)
+            {
+                t_min = t;
+                hit_geom_index = i;
+                intersect_point = tmp_intersect;
+                normal = tmp_normal;
+                hit_triangle = true;
+            }
+        }
+#endif
+
 
 
         if (hit_geom_index == -1)
@@ -320,7 +347,7 @@ __global__ void computeIntersections(
         {
             // The ray hits something
             intersections[path_index].t = t_min;
-            intersections[path_index].materialId = geoms[hit_geom_index].materialid;
+            intersections[path_index].materialId = hit_triangle ? triangles[hit_geom_index].materialid : geoms[hit_geom_index].materialid;
             intersections[path_index].surfaceNormal = normal;
         }
     }
@@ -530,7 +557,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     //}
     hst_scene->updateGeoms(frameTime);
     cudaMemcpy(dev_geoms, hst_scene->geoms.data(), hst_scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
-
+    
 
 
     generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths);
@@ -559,6 +586,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             hst_scene->geoms.size(),
             dev_intersections,
             dev_triangles,
+            hst_scene->meshTriangles.size(),
             dev_vertPositions,
             dev_vertNormals
         );

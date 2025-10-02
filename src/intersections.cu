@@ -274,6 +274,48 @@ __host__ __device__ float triangleIntersectionTest(const Geom& mesh, const Trian
     return glm::length(r.origin - intersectionPoint);
 }
 
+
+// for pre-transformed triangles
+__host__ __device__ float triangleIntersectionTestPretransformed(const Triangle& tri, const glm::vec3* vertPos, const glm::vec3* vertNorm, Ray r, glm::vec3& intersectionPoint, glm::vec3& normal)
+{
+
+    const glm::vec3& v0 = vertPos[tri.posIndices[0]];
+    const glm::vec3& v1 = vertPos[tri.posIndices[1]];
+    const glm::vec3& v2 = vertPos[tri.posIndices[2]];
+
+    
+
+    glm::vec3 bPos;
+    bool flip = false;
+    if (glm::intersectRayTriangle(r.origin, r.direction, v0, v1, v2, bPos)) {
+
+    }
+    else if (glm::intersectRayTriangle(r.origin, r.direction, v0, v2, v1, bPos)) {
+        float tmp = bPos.x;
+        bPos.x = bPos.y;
+        bPos.y = tmp;
+        flip = true;
+    }
+    else {
+        return -1.f;
+    }
+    intersectionPoint = r.origin + r.direction * bPos.z;
+    if (tri.normIndices[0] == -1) {
+        glm::vec3 d1 = flip ? v2 - v0 : v1 - v0;
+        glm::vec3 d2 = flip ? v1 - v0 : v2 - v0;
+        normal = glm::normalize(glm::cross(d1, d2));
+    }
+    else {
+        const glm::vec3& n0 = vertNorm[tri.normIndices[0]];
+        const glm::vec3& n1 = vertNorm[tri.normIndices[1]];
+        const glm::vec3& n2 = vertNorm[tri.normIndices[2]];
+        float w = 1.f - bPos.x - bPos.y;
+        normal = glm::normalize(w * n0 + bPos.x * n1 + bPos.y * n2);
+
+    }
+    return glm::length(r.origin - intersectionPoint);
+}
+
 __host__ __device__ float intersectBVH(Ray r, const unsigned int nodeIdx)
 {
     //BVHNode& node = scene.bvhNode[nodeIdx];
