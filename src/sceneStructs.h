@@ -123,4 +123,18 @@ struct Triangle {
     
     // TODO materials and such once I do texture loading
     // TODO store normal indices in same as pos indices? since same values here
+    glm::vec3 centroid; // TODO do I wanna store elsewhere since not needed I think on gpu side?
+
+    // TODO need to store materials etc. within triangles rather than per mesh if wanting to do texturing later and also if wanting to facilitate loading multiple gltfs well for BVH
+    // TODO maybe just storing positions directly actually is better? less steps of reading needed
+    // TODO need to bake transformations into vert positions I think
+};
+
+
+struct BVHNode {
+    glm::vec3 aabbMin, aabbMax;
+    unsigned int leftNode;
+    //bool isLeaf;
+    unsigned int firstTriIdx, triCount;
+    // TODO combine leftFirst
 };

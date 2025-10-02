@@ -336,6 +336,7 @@ void Scene::loadFromGLTF(Geom& geom, const std::string& gltfName)
                 indexDataVec.reserve(indexCount);
                 size_t stride = indexBufferView.byteStride ? static_cast<size_t>(indexBufferView.byteStride) : 0;
                 const unsigned char* data = indexBuffer.data.data() + indexBufferView.byteOffset + indexAccessor.byteOffset;
+                
                 // TODO this works for several of the models fine but the avocado is still bad
                 if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
                     //const uint16_t* indexDataPtr = reinterpret_cast<uint16_t*>(indexBuffer.data.data() + indexBufferView.byteOffset + indexAccessor.byteOffset);
@@ -414,6 +415,98 @@ void Scene::loadFromGLTF(Geom& geom, const std::string& gltfName)
     this->vertNormals.push_back(glm::vec3(0.f, 0.f, -1.f));
     this->meshTriangles.push_back(tri);*/
 
+    // TODO apply transformations here and remove from intersections.cu
+
     geom.triEnd = this->meshTriangles.size();
+
+}
+
+
+// based on https://jacco.ompf2.com/2022/04/13/how-to-build-a-bvh-part-1-basics/
+void Scene::buildBVH()
+{
+    int numTri = this->meshTriangles.size();
+    bvhNode.resize(numTri * 2 - 1);
+    triIdx.resize(numTri);
+    unsigned int rootNodeIdx = 0;
+    nodesUsed = 1;
+    for (int i = 0; i < numTri; ++i) {
+        this->meshTriangles[i].centroid =
+            (this->vertPositions[this->meshTriangles[i].posIndices[0]]
+                + this->vertPositions[this->meshTriangles[i].posIndices[1]]
+                + this->vertPositions[this->meshTriangles[i].posIndices[2]]) / 3.f;
+        this->triIdx[i] = i;
+    }
+
+    // assign all triangles to root node
+    BVHNode& root = bvhNode[rootNodeIdx];
+    root.leftNode = 0;
+    root.firstTriIdx = 0;
+    root.triCount = numTri;
+    updateNodeBounds(rootNodeIdx);
+    // subdivide recursively
+    subdivide(rootNodeIdx);
+}
+
+
+void Scene::updateNodeBounds(unsigned int nodeIdx)
+{
+    BVHNode& node = bvhNode[nodeIdx];
+    node.aabbMin = glm::vec3(1e30f);
+    node.aabbMax = glm::vec3(-1e30f);
+    unsigned int end = node.firstTriIdx + node.triCount;
+    for (unsigned int i = node.firstTriIdx; i < end; ++i) {
+        unsigned int leafTriIdx = triIdx[i];
+        const Triangle& leafTri = meshTriangles[leafTriIdx];
+        node.aabbMin = glm::min(node.aabbMin, this->vertPositions[leafTri.posIndices[0]]);
+        node.aabbMin = glm::min(node.aabbMin, this->vertPositions[leafTri.posIndices[1]]);
+        node.aabbMin = glm::min(node.aabbMin, this->vertPositions[leafTri.posIndices[2]]);
+        node.aabbMax = glm::max(node.aabbMax, this->vertPositions[leafTri.posIndices[0]]);
+        node.aabbMax = glm::max(node.aabbMax, this->vertPositions[leafTri.posIndices[1]]);
+        node.aabbMax = glm::max(node.aabbMax, this->vertPositions[leafTri.posIndices[2]]);
+
+    }
+}
+
+void Scene::subdivide(unsigned int nodeIdx) {
+    BVHNode& node = bvhNode[nodeIdx];
+    if (node.triCount <= 2) return;
+    // determine split axis and position
+    glm::vec3 extent = node.aabbMax - node.aabbMin;
+    int axis = 0;
+    if (extent.y > extent.x) axis = 1;
+    if (extent.z > extent[axis]) axis = 2;
+    float splitPos = node.aabbMin[axis] + extent[axis] * 0.5f;
+    // in-place partition
+    int i = node.firstTriIdx;
+    int j = i + node.triCount - 1;
+    while (i <= j) {
+        if (meshTriangles[triIdx[i]].centroid[axis] < splitPos) {
+            ++i;
+        }
+        else {
+            swap(triIdx[i], triIdx[j--]);
+        }
+    }
+    // abort split if one of the sides is empty
+    int leftCount = i - node.firstTriIdx;
+    if (leftCount == 0 || leftCount == node.triCount) {
+        return;
+    }
+    // create child nodes
+    int leftChildIdx = nodesUsed++;
+    int rightChildIdx = nodesUsed++;
+    bvhNode[leftChildIdx].firstTriIdx = node.firstTriIdx;
+    bvhNode[leftChildIdx].triCount = leftCount;
+    bvhNode[rightChildIdx].firstTriIdx = i;
+    bvhNode[rightChildIdx].triCount = node.triCount - leftCount;
+    node.leftNode = leftChildIdx;
+    node.triCount = 0;
+    updateNodeBounds(leftChildIdx);
+    updateNodeBounds(rightChildIdx);
+    // recurse
+    subdivide(leftChildIdx);
+    subdivide(rightChildIdx);
+
 
 }

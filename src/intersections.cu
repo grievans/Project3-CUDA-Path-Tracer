@@ -273,3 +273,9 @@ __host__ __device__ float triangleIntersectionTest(const Geom& mesh, const Trian
     //return 0.2f;
     return glm::length(r.origin - intersectionPoint);
 }
+
+__host__ __device__ float intersectBVH(Ray r, const unsigned int nodeIdx)
+{
+    //BVHNode& node = scene.bvhNode[nodeIdx];
+    return 0.f;
+}

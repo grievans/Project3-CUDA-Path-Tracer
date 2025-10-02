@@ -279,6 +279,10 @@ __global__ void computeIntersections(
                 t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
             }
             else if (geom.type == MESH) {
+                // TODO tweak to make per-triangle instead
+
+
+
                 for (int j = geom.triStart; j < geom.triEnd; ++j) {
                     t = triangleIntersectionTest(geom, triangles[j], vertPositions, vertNormals, pathSegment.ray, tmp_intersect, tmp_normal);
                     if (t > 0.0f && t_min > t)
@@ -304,6 +308,9 @@ __global__ void computeIntersections(
                 normal = tmp_normal;
             }
         }
+
+
+
 
         if (hit_geom_index == -1)
         {

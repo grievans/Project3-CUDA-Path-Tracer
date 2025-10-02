@@ -83,3 +83,6 @@ __host__ __device__ float triangleIntersectionTest(
     Ray r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal);
+
+
+__host__ __device__ float intersectBVH(Ray r, const unsigned int nodeIdx);
