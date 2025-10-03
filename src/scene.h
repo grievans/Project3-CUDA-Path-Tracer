@@ -4,7 +4,7 @@
 #include <vector>
 
 
-#define USE_BVH 0
+#define USE_BVH 1
 
 class Scene
 {

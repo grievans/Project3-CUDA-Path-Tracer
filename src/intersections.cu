@@ -316,8 +316,59 @@ __host__ __device__ float triangleIntersectionTestPretransformed(const Triangle&
     return glm::length(r.origin - intersectionPoint);
 }
 
-__host__ __device__ float intersectBVH(Ray r, const unsigned int nodeIdx)
+__host__ __device__ float intersectBVH(const Ray& ray, const BVHNode* bvhNode, const unsigned int nodeIdx,
+    const Triangle* tris, const unsigned int* triIdx,
+    const glm::vec3* vertPos, const glm::vec3* vertNorm, glm::vec3& intersectionPoint, glm::vec3& normal)
 {
     //BVHNode& node = scene.bvhNode[nodeIdx];
+    // TODO figure out if size of this array is fine
+    int bvhStack[64]; 
+    int stackHead = 0;
+    bvhStack[0] = nodeIdx;
+    float t = 1e30f;
+    do {
+        const BVHNode& node = bvhNode[bvhStack[stackHead]];
+        if (!intersectAABB(ray, node.aabbMin, node.aabbMax, t)) {
+            continue;
+        }
+        if (node.triCount > 0) {
+            // is leaf
+
+
+            //const Triangle& tri, const glm::vec3* vertPos, const glm::vec3* vertNorm, Ray r, glm::vec3& intersectionPoint, glm::vec3& normal
+            for (unsigned int i = 0; i < node.triCount; ++i) {
+                glm::vec3 iP;
+                glm::vec3 n;
+                float triT = triangleIntersectionTestPretransformed(tris[triIdx[node.firstTriIdx + i]], vertPos, vertNorm, ray, iP, n);
+
+                if (triT > 0.f && triT < t) {
+                    t = triT;
+                    intersectionPoint = iP;
+                    normal = n;
+
+                }
+            }
+        }
+        else {
+            // add left and right to stack
+            bvhStack[stackHead++] = node.leftNode;
+            bvhStack[stackHead++] = node.leftNode + 1;
+        }
+    } while (--stackHead >= 0);
+
+    
+
+
     return 0.f;
+}
+
+bool intersectAABB(const Ray & ray, const glm::vec3 bmin, const glm::vec3 bmax, float t)
+{
+    float tx1 = (bmin.x - ray.origin.x) / ray.direction.x, tx2 = (bmax.x - ray.origin.x) / ray.direction.x;
+    float tmin = min(tx1, tx2), tmax = max(tx1, tx2);
+    float ty1 = (bmin.y - ray.origin.y) / ray.direction.y, ty2 = (bmax.y - ray.origin.y) / ray.direction.y;
+    tmin = max(tmin, min(ty1, ty2)), tmax = min(tmax, max(ty1, ty2));
+    float tz1 = (bmin.z - ray.origin.z) / ray.direction.z, tz2 = (bmax.z - ray.origin.z) / ray.direction.z;
+    tmin = max(tmin, min(tz1, tz2)), tmax = min(tmax, max(tz1, tz2));
+    return tmax >= tmin && tmin < t && tmax > 0;
 }

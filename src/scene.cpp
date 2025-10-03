@@ -590,4 +590,7 @@ void Scene::transformTriangles()
             //}
         //}
     }
+
+    //thrust::sort_by_key(triIdx.beginI(), triIdx.end(), dev_paths, materialOrderIntersections());
+
 }

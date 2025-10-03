@@ -88,6 +88,7 @@ static glm::vec3* dev_vertPositions = NULL;
 static glm::vec3* dev_vertNormals = NULL;
 
 static BVHNode* dev_bvhNode = NULL;
+static unsigned int* dev_triIdx = NULL;
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -130,6 +131,11 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_bvhNode, scene->bvhNode.size() * sizeof(BVHNode));
     cudaMemcpy(dev_bvhNode, scene->bvhNode.data(), scene->bvhNode.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);
 
+    cudaMalloc(&dev_triIdx, scene->triIdx.size() * sizeof(unsigned int));
+    cudaMemcpy(dev_triIdx, scene->triIdx.data(), scene->triIdx.size() * sizeof(unsigned int), cudaMemcpyHostToDevice);
+
+    //cudaMalloc(&dev_)
+
 
     checkCUDAError("pathtraceInit");
 }
@@ -146,6 +152,7 @@ void pathtraceFree()
     cudaFree(dev_vertPositions);
     cudaFree(dev_vertNormals);
     cudaFree(dev_bvhNode);
+    cudaFree(dev_triIdx);
 
     checkCUDAError("pathtraceFree");
 }
@@ -253,7 +260,9 @@ __global__ void computeIntersections(
     Triangle* triangles,
     int triangles_size,
     glm::vec3* vertPositions,
-    glm::vec3* vertNormals)
+    glm::vec3* vertNormals,
+    BVHNode* bvhNodes,
+    unsigned int* triIdx)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -322,7 +331,10 @@ __global__ void computeIntersections(
 
 
 #if USE_BVH
-
+        // TODO should really sort triangles rather than use triIdx
+        intersectBVH(pathSegment.ray, bvhNodes, 0,
+            triangles, triIdx,
+            vertPositions, vertNormals, tmp_intersect, tmp_normal);
 #else
         for (int i = 0; i < triangles_size; ++i) {
             t = triangleIntersectionTestPretransformed(triangles[i], vertPositions, vertNormals, pathSegment.ray, tmp_intersect, tmp_normal);
@@ -557,7 +569,9 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     //}
     hst_scene->updateGeoms(frameTime);
     cudaMemcpy(dev_geoms, hst_scene->geoms.data(), hst_scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
-    
+    cudaMemcpy(dev_vertPositions, hst_scene->vertPositions.data(), hst_scene->vertPositions.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+    cudaMemcpy(dev_vertNormals, hst_scene->vertNormals.data(), hst_scene->vertNormals.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+
 
 
     generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths);
@@ -588,7 +602,9 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_triangles,
             hst_scene->meshTriangles.size(),
             dev_vertPositions,
-            dev_vertNormals
+            dev_vertNormals,
+            dev_bvhNode,
+            dev_triIdx
         );
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();
