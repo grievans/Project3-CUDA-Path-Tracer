@@ -94,6 +94,7 @@ __host__ __device__ float triangleIntersectionTestPretransformed(
 
 __host__ __device__ float intersectBVH(const Ray& ray, const BVHNode* bvhNode, const unsigned int nodeIdx,
     const Triangle* tris, const unsigned int* triIdx,
-    const glm::vec3* vertPos, const glm::vec3* vertNorm, glm::vec3& intersectionPoint, glm::vec3& normal);
+    const glm::vec3* vertPos, const glm::vec3* vertNorm, glm::vec3& intersectionPoint, glm::vec3& normal,
+    int& triIndex);
 
 __host__ __device__ bool intersectAABB(const Ray& r, const glm::vec3 bmin, const glm::vec3 bmax, float t);

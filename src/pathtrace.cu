@@ -332,9 +332,19 @@ __global__ void computeIntersections(
 
 #if USE_BVH
         // TODO should really sort triangles rather than use triIdx
-        intersectBVH(pathSegment.ray, bvhNodes, 0,
+        int triIndex;
+        t = intersectBVH(pathSegment.ray, bvhNodes, 0,
             triangles, triIdx,
-            vertPositions, vertNormals, tmp_intersect, tmp_normal);
+            vertPositions, vertNormals, tmp_intersect, tmp_normal, triIndex);
+        if (t > 0.0f && t_min > t)
+        {
+            t_min = t;
+            hit_geom_index = triIndex;
+            intersect_point = tmp_intersect;
+            normal = tmp_normal;
+            hit_triangle = true;
+            //printf("%f\n", t);
+        }
 #else
         for (int i = 0; i < triangles_size; ++i) {
             t = triangleIntersectionTestPretransformed(triangles[i], vertPositions, vertNormals, pathSegment.ray, tmp_intersect, tmp_normal);

@@ -318,7 +318,7 @@ __host__ __device__ float triangleIntersectionTestPretransformed(const Triangle&
 
 __host__ __device__ float intersectBVH(const Ray& ray, const BVHNode* bvhNode, const unsigned int nodeIdx,
     const Triangle* tris, const unsigned int* triIdx,
-    const glm::vec3* vertPos, const glm::vec3* vertNorm, glm::vec3& intersectionPoint, glm::vec3& normal)
+    const glm::vec3* vertPos, const glm::vec3* vertNorm, glm::vec3& intersectionPoint, glm::vec3& normal, int& triIndex)
 {
     //BVHNode& node = scene.bvhNode[nodeIdx];
     // TODO figure out if size of this array is fine
@@ -345,6 +345,7 @@ __host__ __device__ float intersectBVH(const Ray& ray, const BVHNode* bvhNode, c
                     t = triT;
                     intersectionPoint = iP;
                     normal = n;
+                    triIndex = triIdx[node.firstTriIdx + i];
 
                 }
             }
@@ -356,10 +357,13 @@ __host__ __device__ float intersectBVH(const Ray& ray, const BVHNode* bvhNode, c
         }
     } while (--stackHead >= 0);
 
+    if (t > 1e29f) {
+        return -1.f;
+    }
     
+    //printf("%f\n", t);
 
-
-    return 0.f;
+    return t;
 }
 
 bool intersectAABB(const Ray & ray, const glm::vec3 bmin, const glm::vec3 bmax, float t)

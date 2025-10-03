@@ -93,7 +93,7 @@ void Scene::updateGeoms(float time)
     }
     transformTriangles();
 #if USE_BVH
-    subdivide(0);
+    buildBVH();
 #endif
 
 
@@ -260,7 +260,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
     this->vertNormals.resize(this->originalVertNormals.size());
     this->transformTriangles();
 #if USE_BVH
-    this->subdivide(0);
+    this->buildBVH();
 #endif
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;
@@ -485,6 +485,8 @@ void Scene::loadFromGLTF(Geom& geom, const std::string& gltfName)
 // based on https://jacco.ompf2.com/2022/04/13/how-to-build-a-bvh-part-1-basics/
 void Scene::buildBVH()
 {
+    this->nodesUsed = 1;
+    //this->rootNodeIndex = 0;
     int numTri = this->meshTriangles.size();
     bvhNode.resize(numTri * 2 - 1);
     triIdx.resize(numTri);
