@@ -78,8 +78,17 @@ __host__ __device__ float fresnelDielectricEval(float cosThetaI, float eta) {
 //}
 
 
+__host__ __device__ glm::vec3 vecRefract(const glm::vec3& I, const glm::vec3& N, float eta) {
+    float k = 1.0 - eta * eta * (1.0 - dot(N, I) * dot(N, I));
+    if (k < 0.0)
+        return glm::vec3(0.0);       // or genDType(0.0)
+    else
+        return eta * I - (eta * dot(N, I) + sqrt(k)) * N;
+}
+
+
 #define PDF_EPSILON 0.0001f
-#define RAY_EPSILON 0.01f
+#define RAY_EPSILON 0.0001f
 #define ROULETTE_THRESHOLD 0.01f
 #define ROULETTE_ON 1
 // TODO figure out good epsilons; IDK why I have issues for 0.001f step along distance
@@ -143,10 +152,14 @@ __host__ __device__ void scatterRay(
     float diffIntensity = m.color.r + m.color.g + m.color.b;
     float specIntensity = m.specular.color.r + m.specular.color.g + m.specular.color.b;
 
-    float randWeight = u01(rng) * (diffIntensity + specIntensity);
+    float sumIntensity = diffIntensity + specIntensity;
+    float randWeight = u01(rng) * (sumIntensity);
 
-
-
+    /*if (length(pathSegment.ray.origin) > 15.f) {
+        pathSegment.color *= glm::vec3(100.f, 100.f, 0.f);
+        pathSegment.remainingBounces = 0;
+        return;
+    }*/
 
     // TODO specular intensity and diffuse intensity, store in material perhaps? or just sum here. then rng choose based on weights and render that one
     //   potential thing: should randomly choose in prior iteration and sort based on that?
@@ -170,29 +183,54 @@ __host__ __device__ void scatterRay(
             float eta = entering ? 1.f / m.indexOfRefraction : m.indexOfRefraction;
             //float eta = entering ? m.indexOfRefraction : 1.f / m.indexOfRefraction;
 
-            glm::vec3 wi = glm::refract(pathSegment.ray.direction, entering ? normal : -normal, eta);
-            //if (length(wi) < 0.000001f) {
+            glm::vec3 wi = vecRefract(pathSegment.ray.direction, entering ? normal : -normal, eta);
+            //glm::vec3 wi = glm::refract(pathSegment.ray.direction, entering ? normal : -normal, eta);
+            if (length(wi) < 0.001f) {
             // TODO should this be == 0 or < epsilon?
-            if (wi == glm::vec3(0.f)) {
+            //if (wi == glm::vec3(0.f)) {
             //glm::vec3 wi;
             //if (!refract(pathSegment.ray.direction, entering ? normal : -normal, eta, wi)) {
                 pathSegment.color = glm::vec3(0.f);
                 pathSegment.remainingBounces = 0;
                 return;
             }
+            /*if (isnan(wi.x)) {
+                printf("%f %f %f %f %f %f\n", pathSegment.ray.direction.x, pathSegment.ray.direction.y, pathSegment.ray.direction.z, normal.x, normal.y, normal.z);
+                pathSegment.color = glm::vec3(1.f, 0.f, 0.f);
+                pathSegment.remainingBounces = 0;
+                return;
+            }*/
             pathSegment.ray.direction = normalize(wi);
             // TODO normalize stuff?
             //pathSegment.ray.direction = normalize(wi);
             //pathSegment.ray.direction = normalize(pathSegment.ray.direction);
 
+            //pathSegment.ray.origin = intersect - normal * RAY_EPSILON;
+            //if (length(intersect - glm::vec3(0.f,5.f,0.f)) > 4.f) {
+                //intersect = glm::vec3(0.f,5.f,0.f);
+            //}
+
+            /*if (isnan(pathSegment.ray.direction.x)) {
+                printf("%f %f %f", normal.x, normal.y, normal.z);
+                pathSegment.color = glm::vec3(1.f,0.f,0.f);
+                pathSegment.remainingBounces = 0;
+                return;
+            }*/
             pathSegment.ray.origin = intersect + pathSegment.ray.direction * RAY_EPSILON;
+            
             //float absDotDirNor = abs(dot(pathSegment.ray.direction, normal)); //cancels out
-            pathSegment.color *= m.specular.color * eta * eta * modeSum * (true ? 1.f - fresnelDielectricEval(dot(normal, normalize(wi)), m.indexOfRefraction) : 1.f);
+            pathSegment.color *= m.specular.color * eta * eta * modeSum * (true ? 1.f - fresnelDielectricEval(dot(normal, normalize(wi)), m.indexOfRefraction) : 1.f)
+                * sumIntensity / specIntensity;
             //pathSegment.color *= m.specular.color * eta * eta * modeSum * (modeSum > 1.f ? 1.f - fresnelDielectricEval(dot(normal, normalize(wi)), m.indexOfRefraction) : 1.f);
             --pathSegment.remainingBounces;
 
             // TODO is fresnel supposed to apply for pure transmission/reflection? if so remove that modeSum > 1.f
 
+            /*if (pathSegment.color.b > 1.f && pathSegment.remainingBounces > 0) {
+                pathSegment.color.r = 100.f;
+                pathSegment.remainingBounces = 0;
+            }*/
+            
             
             return;
         }
@@ -210,10 +248,17 @@ __host__ __device__ void scatterRay(
 
         //pathSegment.color *= m.specular.color * modeSum; // / pdf -> / 1
 
-        pathSegment.color *= m.specular.color * modeSum * (true ? fresnelDielectricEval(dot(normal, normalize(pathSegment.ray.direction)), m.indexOfRefraction) : 1.f);
+        pathSegment.color *= m.specular.color * modeSum * (true ? fresnelDielectricEval(dot(normal, normalize(pathSegment.ray.direction)), m.indexOfRefraction) : 1.f)
+            * sumIntensity / specIntensity;
         //pathSegment.color *= m.specular.color * modeSum * (modeSum > 1.f ? fresnelDielectricEval(dot(normal, normalize(pathSegment.ray.direction)), m.indexOfRefraction) : 1.f);
         
         --pathSegment.remainingBounces;
+
+        /*if (pathSegment.color.b > 1.f && pathSegment.remainingBounces > 0) {
+            pathSegment.color.g = 100.f;
+            pathSegment.remainingBounces = 0;
+        }*/
+
         return;
     }
 
@@ -232,8 +277,10 @@ __host__ __device__ void scatterRay(
     pathSegment.ray.origin = intersect + pathSegment.ray.direction * RAY_EPSILON;
 
 
-    pathSegment.color *= m.color * INV_PI * absDotDirNor / pdf * modeSum; // TODO does that need a scale?
+    pathSegment.color *= m.color * INV_PI * absDotDirNor / pdf
+        * sumIntensity / diffIntensity; // TODO does that need a scale?
     --pathSegment.remainingBounces;
+
     //--pathSegment.remainingBounces;
 
 }

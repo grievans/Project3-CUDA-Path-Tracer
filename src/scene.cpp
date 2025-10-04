@@ -485,6 +485,12 @@ void Scene::loadFromGLTF(Geom& geom, const std::string& gltfName)
 // based on https://jacco.ompf2.com/2022/04/13/how-to-build-a-bvh-part-1-basics/
 void Scene::buildBVH()
 {
+    if (this->meshTriangles.size() == 0) {
+        bvhNode.resize(0);
+        triIdx.resize(0);
+        nodesUsed = 0;
+        return;
+    }
     this->nodesUsed = 1;
     //this->rootNodeIndex = 0;
     int numTri = this->meshTriangles.size();

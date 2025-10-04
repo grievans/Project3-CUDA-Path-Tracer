@@ -332,18 +332,22 @@ __global__ void computeIntersections(
 
 #if USE_BVH
         // TODO should really sort triangles rather than use triIdx
-        int triIndex;
-        t = intersectBVH(pathSegment.ray, bvhNodes, 0,
-            triangles, triIdx,
-            vertPositions, vertNormals, tmp_intersect, tmp_normal, triIndex);
-        if (t > 0.0f && t_min > t)
-        {
-            t_min = t;
-            hit_geom_index = triIndex;
-            intersect_point = tmp_intersect;
-            normal = tmp_normal;
-            hit_triangle = true;
-            //printf("%f\n", t);
+        if (triangles_size > 0 ) {
+        //if (triangles_size > 0 && depth <= 1) {
+
+            int triIndex;
+            t = intersectBVH(pathSegment.ray, bvhNodes, 0,
+                triangles, triIdx,
+                vertPositions, vertNormals, tmp_intersect, tmp_normal, triIndex);
+            if (t > 0.0f && t_min > t)
+            {
+                t_min = t;
+                hit_geom_index = triIndex;
+                intersect_point = tmp_intersect;
+                normal = tmp_normal;
+                hit_triangle = true;
+                //printf("%f\n", t);
+            }
         }
 #else
         for (int i = 0; i < triangles_size; ++i) {
@@ -363,6 +367,13 @@ __global__ void computeIntersections(
 
         if (hit_geom_index == -1)
         {
+            /*if (t_min != FLT_MAX) {
+                printf("%i %f\n",depth, t_min);
+            }*/
+            /*if (intersections[path_index].materialId >= 5) {
+                printf("%f %f %f, ", pathSegment.ray.origin.x, pathSegment.ray.origin.y, pathSegment.ray.origin.z);
+                printf("%f %f %f\n", pathSegment.ray.direction.x, pathSegment.ray.direction.y, pathSegment.ray.direction.z);
+            }*/
             intersections[path_index].t = -1.0f;
         }
         else
@@ -472,13 +483,19 @@ __global__ void shadeMaterial(
             
 
             
+            /*if (pathSegments[idx].color.b > 1.f && pathSegments[idx].remainingBounces > 0) {
+                pathSegments[idx].color.r = 10.f;
+                pathSegments[idx].remainingBounces = 0;
+            }*/
             // If there was no intersection, color the ray black.
             // Lots of renderers use 4 channel color, RGBA, where A = alpha, often
             // used for opacity, in which case they can indicate "no opacity".
             // This can be useful for post-processing and image compositing.
         }
         else {
-            pathSegments[idx].color = glm::vec3(0.0f);
+            // TODO try environment mapping: load an hdr image and here map direction to color from that
+            pathSegments[idx].color *= glm::vec3(0.1f,0.2f,0.4f);
+            //pathSegments[idx].color = glm::vec3(0.0f);
             pathSegments[idx].remainingBounces = 0;
         }
     }

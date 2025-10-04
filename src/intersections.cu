@@ -275,6 +275,7 @@ __host__ __device__ float triangleIntersectionTest(const Geom& mesh, const Trian
 }
 
 
+
 // for pre-transformed triangles
 __host__ __device__ float triangleIntersectionTestPretransformed(const Triangle& tri, const glm::vec3* vertPos, const glm::vec3* vertNorm, Ray r, glm::vec3& intersectionPoint, glm::vec3& normal)
 {
@@ -284,17 +285,18 @@ __host__ __device__ float triangleIntersectionTestPretransformed(const Triangle&
     const glm::vec3& v2 = vertPos[tri.posIndices[2]];
 
     
-
+    r.direction = normalize(r.direction);
     glm::vec3 bPos;
     bool flip = false;
     if (glm::intersectRayTriangle(r.origin, r.direction, v0, v1, v2, bPos)) {
 
     }
     else if (glm::intersectRayTriangle(r.origin, r.direction, v0, v2, v1, bPos)) {
+        // TODO want normals to match outside of surface even if hitting on inside; think right now assuming consistent vertex order?
         float tmp = bPos.x;
         bPos.x = bPos.y;
         bPos.y = tmp;
-        flip = true;
+        //flip = true;
     }
     else {
         return -1.f;
@@ -313,7 +315,7 @@ __host__ __device__ float triangleIntersectionTestPretransformed(const Triangle&
         normal = glm::normalize(w * n0 + bPos.x * n1 + bPos.y * n2);
 
     }
-    return glm::length(r.origin - intersectionPoint);
+    return bPos.z;
 }
 
 __host__ __device__ float intersectBVH(const Ray& ray, const BVHNode* bvhNode, const unsigned int nodeIdx,
@@ -342,6 +344,7 @@ __host__ __device__ float intersectBVH(const Ray& ray, const BVHNode* bvhNode, c
                 float triT = triangleIntersectionTestPretransformed(tris[triIdx[node.firstTriIdx + i]], vertPos, vertNorm, ray, iP, n);
 
                 if (triT > 0.f && triT < t) {
+                    
                     t = triT;
                     intersectionPoint = iP;
                     normal = n;
@@ -357,7 +360,7 @@ __host__ __device__ float intersectBVH(const Ray& ray, const BVHNode* bvhNode, c
         }
     } while (--stackHead >= 0);
 
-    if (t > 1e29f) {
+    if (t >= 1e30f) {
         return -1.f;
     }
     
