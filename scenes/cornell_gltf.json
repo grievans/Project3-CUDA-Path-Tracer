@@ -96,13 +96,7 @@
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[0.01,10.0,10.0]
         },
-        {
-            "TYPE":"cube",
-            "MATERIAL":"diffuse_green",
-            "TRANS":[0.0,5.0,5.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[10.0,10.0,0.01]
-        },
+        
         {
             "TYPE":"gltf",
             "MATERIAL":"glass_white",
@@ -111,5 +105,9 @@
             "SCALE":[0.02,0.02,0.02],
             "FILE": "../scenes/glTF-Samples/duck/Duck.gltf"
         }
-    ]
+    ],
+  "Environment": {
+    "COLOR": [ 0.1, 0.2, 0.45 ],
+    "HDR":  "../scenes/hdr/dam_wall_4k.hdr"
+  }
 }

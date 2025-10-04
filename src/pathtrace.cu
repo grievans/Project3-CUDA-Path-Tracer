@@ -86,6 +86,7 @@ static ShadeableIntersection* dev_intersections = NULL;
 static Triangle* dev_triangles = NULL;
 static glm::vec3* dev_vertPositions = NULL;
 static glm::vec3* dev_vertNormals = NULL;
+static glm::vec3* dev_envMap = NULL;
 
 static BVHNode* dev_bvhNode = NULL;
 static unsigned int* dev_triIdx = NULL;
@@ -134,6 +135,9 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_triIdx, scene->triIdx.size() * sizeof(unsigned int));
     cudaMemcpy(dev_triIdx, scene->triIdx.data(), scene->triIdx.size() * sizeof(unsigned int), cudaMemcpyHostToDevice);
 
+    cudaMalloc(&dev_envMap, scene->environmentMap.size() * sizeof(glm::vec3));
+    cudaMemcpy(dev_envMap, scene->environmentMap.data(), scene->environmentMap.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+    
     //cudaMalloc(&dev_)
 
 
@@ -157,7 +161,7 @@ void pathtraceFree()
     checkCUDAError("pathtraceFree");
 }
 
-#define USE_DOF 1
+#define USE_DOF 0
 #define LENS_RADIUS 0.05f
 #define FOCAL_DISTANCE 3.f
 // TODO maybe make configurable in JSONs^
@@ -440,14 +444,22 @@ __global__ void shadeFakeMaterial(
     }
 }
 
-
+__host__ __device__ glm::vec2 sampleSphericalMap(glm::vec3 v) {
+    glm::vec2 uv = glm::vec2(glm::atan(v.z, v.x), glm::asin(v.y));
+    // range -pi, pi; -pi/2 to pi/2
+    uv *= glm::vec2(INV_TWO_PI, INV_PI);
+    uv += 0.5;
+    return uv;
+}
 
 __global__ void shadeMaterial(
     int iter,
     int num_paths,
     ShadeableIntersection* shadeableIntersections,
     PathSegment* pathSegments,
-    Material* materials)
+    Material* materials,
+    glm::vec3 * envMap,
+    int envWidth, int envHeight)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < num_paths)
@@ -494,7 +506,12 @@ __global__ void shadeMaterial(
         }
         else {
             // TODO try environment mapping: load an hdr image and here map direction to color from that
-            pathSegments[idx].color *= glm::vec3(0.1f,0.2f,0.4f);
+            //pathSegments[idx].color *= envColor;
+            // TODO normalize might be redundant here
+            glm::vec2 uv = sampleSphericalMap(normalize(pathSegments[idx].ray.direction));
+            glm::vec3 skyColor = envMap[(int)(uv.x * envWidth) + (int)(uv.y * envHeight) * envWidth];
+            //pathSegments[idx].color *= glm::vec3(0.1f,0.2f,0.4f);
+            pathSegments[idx].color *= skyColor;
             //pathSegments[idx].color = glm::vec3(0.0f);
             pathSegments[idx].remainingBounces = 0;
         }
@@ -652,7 +669,10 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_path_end - dev_paths,
             dev_intersections,
             dev_paths,
-            dev_materials
+            dev_materials,
+            dev_envMap,
+            hst_scene->envWidth,
+            hst_scene->envHeight
         );
         //thrust::device_vector
         // 

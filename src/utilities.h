@@ -16,6 +16,7 @@
 #define EPSILON           0.00001f
 
 #define INV_PI            0.31830988618379067f
+#define INV_TWO_PI        0.159154943092f
 
 
 class GuiDataContainer

@@ -11,6 +11,8 @@
 #include <string>
 #include <unordered_map>
 
+#include <stb_image.h>
+
 using namespace std;
 using json = nlohmann::json;
 
@@ -262,6 +264,38 @@ void Scene::loadFromJSON(const std::string& jsonName)
 #if USE_BVH
     this->buildBVH();
 #endif
+    envWidth = 1;
+    envHeight = 1;
+    if (data.contains("Environment")) {
+
+        const auto& envData = data["Environment"];
+        if (envData.contains("HDR")) {
+            const auto& file = envData["HDR"];
+            int x, y;
+            if (loadHDR(file, x, y)) {
+                envWidth = x;
+                envHeight = y;
+                std::cout << "Loading environment HDR file: " << file  << " with dimensions " << x << " by " << y << std::endl;
+            }
+            else {
+                std::cout << "Failed to load environment HDR file: " << file  << std::endl;
+
+                this->environmentMap = { glm::vec3(0.f) };
+            }
+        }
+        else if (envData.contains("COLOR")) {
+            const auto& c = envData["COLOR"];
+            this->environmentMap = { glm::vec3(c[0], c[1], c[2]) };
+
+        }
+        else {
+            this->environmentMap = { glm::vec3(0.f) };
+        }
+    }
+    else {
+        this->environmentMap = { glm::vec3(0.f) };
+    }
+
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;
     RenderState& state = this->state;
@@ -601,4 +635,27 @@ void Scene::transformTriangles()
 
     //thrust::sort_by_key(triIdx.beginI(), triIdx.end(), dev_paths, materialOrderIntersections());
 
+}
+
+// TODO I guess can maybe use same basic code for texture loading on gltf? maybe should
+//  i.e.: maybe make one long vector of textures, save offsets for each, then can store offsets/width/height in triangles? or just another vector of offset/width/height and just int ids in triangles
+// TODO the one other thing I think I want to do code-wise before turning in is make gui controls for dof at least
+bool Scene::loadHDR(const std::string& filename, int &width, int &height) {
+    //if (!stbi_is_hdr(filename.c_str())) {
+    //    return false;
+    //} // actually based on comments in stb_image.h I guess can just handle ldr with default?
+    int x, y, channels;
+    stbi_set_flip_vertically_on_load(true);
+    float* data = stbi_loadf(filename.c_str(), &x, &y, &channels, 0);
+    if (!data || channels < 3) {
+        return false;
+    }
+    environmentMap.clear();
+    for (int i = 0; i < x * y * channels; i += channels) {
+        environmentMap.push_back(glm::vec3(data[i], data[i + 1], data[i + 2]));
+    }
+    width = x;
+    height = y;
+    stbi_image_free(data);
+    return true;
 }

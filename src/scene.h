@@ -11,6 +11,7 @@ class Scene
 private:
     void loadFromJSON(const std::string& jsonName);
     void loadFromGLTF(Geom& geom, const std::string& gltfName);
+    bool loadHDR(const std::string& filename, int &width, int &height);
 
     void updateNodeBounds(unsigned int nodeIdx);
     void subdivide(unsigned int nodeIdx);
@@ -41,6 +42,12 @@ public:
     float minT = 0.f;
     float maxT = 0.f;
     RenderState state;
+
+    //glm::vec3 envColor;
+
+    std::vector<glm::vec3> environmentMap;
+    int envWidth = 0;
+    int envHeight = 0;
 
     unsigned int nodesUsed;
 };
