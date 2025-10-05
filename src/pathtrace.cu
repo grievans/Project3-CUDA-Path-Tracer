@@ -612,19 +612,26 @@ void pathtrace(uchar4* pbo, int frame, int iter, bool useDoF, float lensRadius, 
     // TODO: perform one iteration of path tracing
     //std::cout << iter << std::endl;
 
-    thrust::default_random_engine rng = makeSeededRandomEngine(iter, iter, iter);
-    thrust::uniform_real_distribution<float> u01(hst_scene->minT, hst_scene->maxT);
-    float frameTime = u01(rng);
+    if (hst_scene->minT != hst_scene->maxT) {
+        thrust::default_random_engine rng = makeSeededRandomEngine(iter, iter, iter);
+        thrust::uniform_real_distribution<float> u01(hst_scene->minT, hst_scene->maxT);
+        float frameTime = u01(rng);
+        //std::cout << frameTime << std::endl;
+        //for (Geom& g : hst_scene->geoms) {
+            //g.update(frameTime);
+            //updateGeom(&g, frameTime);/
+        //}
+        hst_scene->updateGeoms(frameTime);
+        hst_scene->buildBVH();
+        cudaMemcpy(dev_geoms, hst_scene->geoms.data(), hst_scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
+        cudaMemcpy(dev_vertPositions, hst_scene->vertPositions.data(), hst_scene->vertPositions.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+        cudaMemcpy(dev_vertNormals, hst_scene->vertNormals.data(), hst_scene->vertNormals.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+        cudaMalloc(&dev_bvhNode, hst_scene->bvhNode.size() * sizeof(BVHNode));
+        cudaMemcpy(dev_bvhNode, hst_scene->bvhNode.data(), hst_scene->bvhNode.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);
 
-    //for (Geom& g : hst_scene->geoms) {
-        //g.update(frameTime);
-        //updateGeom(&g, frameTime);/
-    //}
-    hst_scene->updateGeoms(frameTime);
-    cudaMemcpy(dev_geoms, hst_scene->geoms.data(), hst_scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
-    cudaMemcpy(dev_vertPositions, hst_scene->vertPositions.data(), hst_scene->vertPositions.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
-    cudaMemcpy(dev_vertNormals, hst_scene->vertNormals.data(), hst_scene->vertNormals.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+        cudaMemcpy(dev_triIdx, hst_scene->triIdx.data(), hst_scene->triIdx.size() * sizeof(unsigned int), cudaMemcpyHostToDevice);
 
+    }
 
 
     generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths, useDoF, lensRadius, focalDistance);
