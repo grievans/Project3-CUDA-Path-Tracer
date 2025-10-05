@@ -11,6 +11,7 @@ class Scene
 private:
     void loadFromJSON(const std::string& jsonName);
     void loadFromGLTF(Geom& geom, const std::string& gltfName);
+    void makeNodeTris(const std::vector<Triangle>& originalTris, const std::vector<glm::vec3>& originalPos, const std::vector<glm::vec3>& originalNorms, const tinygltf::Model& model, const std::vector<std::pair<int, int>>& meshTriIndices, int nodeIndex, glm::mat4 transform);
     bool loadHDR(const std::string& filename, int &width, int &height);
 
     void updateNodeBounds(unsigned int nodeIdx);

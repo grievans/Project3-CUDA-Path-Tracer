@@ -12,6 +12,8 @@
 #include <unordered_map>
 
 #include <stb_image.h>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/quaternion.hpp>
 
 using namespace std;
 using json = nlohmann::json;
@@ -368,21 +370,20 @@ void Scene::loadFromGLTF(Geom& geom, const std::string& gltfName)
 
 
     //geom.triStart = this->meshTriangles.size();
+	int totalStartIdx = this->meshTriangles.size();
     geom.pointStart = this->originalVertPositions.size();
     geom.normStart = this->originalVertNormals.size();
     // TODO
-
+    std::vector<std::pair<int,int>> meshTriIndices;
     for (const auto& mesh : model.meshes) {
         std::cout << "Loading mesh: " << mesh.name << std::endl;
+		int startIdx = this->meshTriangles.size();
         for (const auto& prim : mesh.primitives) {
             
             tinygltf::Accessor& posAccessor = model.accessors[prim.attributes.at("POSITION")];
             tinygltf::BufferView& posBufferView = model.bufferViews[posAccessor.bufferView];
             tinygltf::Buffer& posBuffer = model.buffers[posBufferView.buffer];
-            //tinygltf::Accessor& normAccessor = model.accessors[prim.attributes.at("NORMAL")];
-            // TODO figure out syntax for loading in the points from this
-            // TODO checkout perhaps accessor.minVal for later
-            //const auto posDataPtr = posBuffer.data.data() + posBufferView.byteOffset + posAccessor.byteOffset;
+            
             const float* posDataPtr = (float*) &(posBuffer.data[posBufferView.byteOffset + posAccessor.byteOffset]);
             //const auto posByteStride = posAccessor.ByteStride(posBufferView);
             const auto posCount = posAccessor.count;
@@ -406,7 +407,6 @@ void Scene::loadFromGLTF(Geom& geom, const std::string& gltfName)
                 //const auto normDataPtr = normBuffer.data.data() + normBufferView.byteOffset + normAccessor.byteOffset;
                 const float* normDataPtr = (float*)&(normBuffer.data[normBufferView.byteOffset + normAccessor.byteOffset]);
                 const auto normCount = normAccessor.count;
-                // TODO make support no normal data
                 for (size_t i = 0; i < normCount; ++i) {
                     glm::vec3 norm(normDataPtr[i * 3], normDataPtr[i * 3 + 1], normDataPtr[i * 3 + 2]);
                     this->originalVertNormals.push_back(norm);
@@ -489,9 +489,24 @@ void Scene::loadFromGLTF(Geom& geom, const std::string& gltfName)
             }
             std::cout << "Points loaded: " << posCount << std::endl;
         }
+		meshTriIndices.push_back(std::pair<int, int>(startIdx, this->meshTriangles.size()));
         
     }
+    if (model.scenes.size() > 0 && model.scenes[model.defaultScene].nodes.size() > 1) {
+        // ^the above check is more specific than really it ought to be (only doing more than one node if more than one at top level) but should be fine for purposes of models I have?
+		std::vector<Triangle> originalTris = this->meshTriangles;
+		std::vector<glm::vec3> originalPos = this->originalVertPositions;
+		std::vector<glm::vec3> originalNorms = this->originalVertNormals;
+        this->meshTriangles.resize(totalStartIdx);
+		this->originalVertPositions.resize(geom.pointStart);
+		this->originalVertNormals.resize(geom.normStart);
+        for (const int nodeIndex : model.scenes[model.defaultScene].nodes) {
+            glm::mat4 transform = glm::mat4();
+            makeNodeTris(originalTris, originalPos, originalNorms, model, meshTriIndices, nodeIndex, transform);
 
+		}
+
+    }
     // placeholder values to make sure triangle intersection working
    /* Triangle tri;
     for (int i = 0; i < 3; ++i) {
@@ -508,12 +523,55 @@ void Scene::loadFromGLTF(Geom& geom, const std::string& gltfName)
     this->meshTriangles.push_back(tri);*/
 
 
-
+	std::cout << "Total points: " << this->originalVertPositions.size() << std::endl;
     geom.pointEnd = this->originalVertPositions.size();
     geom.normEnd = this->originalVertNormals.size();
     //geom.triEnd = this->meshTriangles.size();
 
 }
+
+void Scene::makeNodeTris(const std::vector<Triangle>& originalTris, const std::vector<glm::vec3>& originalPos, const std::vector<glm::vec3>& originalNorms,
+    const tinygltf::Model& model, const std::vector<std::pair<int,int>>& meshTriIndices, int nodeIndex, glm::mat4 transform) {
+    const tinygltf::Node& node = model.nodes[nodeIndex];
+    // could support .matrix also but not relevant to the model I want to load \shrug
+    if (node.translation.size() >= 3) {
+        glm::vec3 translation = glm::vec3(node.translation[0], node.translation[1], node.translation[2]);
+        transform = glm::translate(transform, translation);
+    }
+    if (node.rotation.size() >= 4) {
+        // quaternion it seems based on example data
+        glm::quat rotation = glm::quat(node.rotation[0], node.rotation[1], node.rotation[2], node.rotation[3]);
+        transform = transform * glm::toMat4(rotation);
+    }
+    if (node.scale.size() >= 3) {
+        glm::vec3 scale = glm::vec3(node.scale[0], node.scale[1], node.scale[2]);
+        transform = glm::scale(transform, scale);
+    }
+    if (node.mesh >= 0) {
+        for (int i = meshTriIndices[node.mesh].first; i < meshTriIndices[node.mesh].second; ++i) {
+            Triangle tri = originalTris[i];
+            for (int j = 0; j < 3; ++j) {
+                glm::vec4 pos = glm::vec4(originalPos[tri.posIndices[j]], 1.f);
+                pos = transform * pos;
+                tri.posIndices[j] = this->originalVertPositions.size();
+                this->originalVertPositions.push_back(glm::vec3(pos));
+                if (tri.normIndices[j] >= 0) {
+                    glm::vec4 norm = glm::vec4(originalNorms[tri.normIndices[j]], 0.f);
+                    norm = transform * norm;
+                    tri.normIndices[j] = this->originalVertNormals.size();
+                    this->originalVertNormals.push_back(glm::normalize(glm::vec3(norm)));
+                }
+            }
+            this->meshTriangles.push_back(tri);
+        }
+    }
+    if (node.children.size() > 0) {
+        for (int i = 0; i < node.children.size(); ++i) {
+		    makeNodeTris(originalTris, originalPos, originalNorms, model, meshTriIndices, node.children[i], transform);
+        }
+    }
+}
+
 
 
 // based on https://jacco.ompf2.com/2022/04/13/how-to-build-a-bvh-part-1-basics/
