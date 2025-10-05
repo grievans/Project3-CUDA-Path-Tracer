@@ -59,6 +59,13 @@ GuiDataContainer* imguiData = NULL;
 ImGuiIO* io = nullptr;
 bool mouseOverImGuiWinow = false;
 
+bool useDoF = true;
+float lensRadius = 0.05f;
+float focalDistance = 3.f;
+bool lastUseDoF = true;
+float lastLensRadius = 0.05f;
+float lastFocalDistance = 3.f;
+
 // Forward declarations for window loop and interactivity
 void runCuda();
 void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods);
@@ -277,6 +284,16 @@ void RenderImGui()
     //ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
     //ImGui::Checkbox("Another Window", &show_another_window);
 
+    ImGui::Checkbox("Use Depth of Field", &useDoF);
+    ImGui::SliderFloat("Lens Radius", &lensRadius, 0.0f, 0.5f); 
+    ImGui::SliderFloat("Focal Distance", &focalDistance, 0.0f, 10.0f); 
+
+    if (useDoF != lastUseDoF || lensRadius != lastLensRadius || focalDistance != lastFocalDistance) {
+        lastUseDoF = useDoF;
+        lastLensRadius = lensRadius;
+        lastFocalDistance = focalDistance;
+        iteration = 0;
+    }
     //ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
     //ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
 
@@ -418,6 +435,8 @@ void saveImage()
     //img.saveHDR(filename);  // Save a Radiance HDR file
 }
 
+
+bool hasInit = false;
 void runCuda()
 {
     if (camchanged)
@@ -446,8 +465,16 @@ void runCuda()
 
     if (iteration == 0)
     {
-        pathtraceFree();
-        pathtraceInit(scene);
+        if (hasInit) {
+            pathtraceClear(scene);
+            
+        }
+        else {
+
+            pathtraceFree();
+            pathtraceInit(scene);
+            hasInit = true;
+        }
     }
 
     if (iteration < renderState->iterations)
@@ -458,7 +485,7 @@ void runCuda()
 
         // execute the kernel
         int frame = 0;
-        pathtrace(pbo_dptr, frame, iteration);
+        pathtrace(pbo_dptr, frame, iteration, useDoF, lensRadius, focalDistance);
 
         // unmap buffer object
         cudaGLUnmapBufferObject(pbo);

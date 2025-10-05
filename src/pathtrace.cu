@@ -144,6 +144,14 @@ void pathtraceInit(Scene* scene)
     checkCUDAError("pathtraceInit");
 }
 
+void pathtraceClear(Scene* scene) {
+    const Camera& cam = scene->state.camera;
+    const int pixelcount = cam.resolution.x * cam.resolution.y;
+    cudaMemset(dev_image, 0, pixelcount * sizeof(glm::vec3));
+    cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
+    checkCUDAError("pathtraceClear");
+}
+
 void pathtraceFree()
 {
     cudaFree(dev_image);  // no-op if dev_image is null
@@ -161,13 +169,13 @@ void pathtraceFree()
     checkCUDAError("pathtraceFree");
 }
 
-#define USE_DOF 0
-#define LENS_RADIUS 0.05f
-#define FOCAL_DISTANCE 3.f
+//#define USE_DOF 1
+//#define LENS_RADIUS 0.05f
+//#define FOCAL_DISTANCE 3.f
 // TODO maybe make configurable in JSONs^
 //  TODO maybe have GUI option to change, but also have option to "auto focus" focal distance on point looked at
 
-#if USE_DOF
+//#if USE_DOF
 __host__ __device__ glm::vec2 sampleUniformDiskConcentric(glm::vec2 u) {
     // map to [-1,1]
     glm::vec2 uOffset = 2.f * u - 1.f;
@@ -188,7 +196,7 @@ __host__ __device__ glm::vec2 sampleUniformDiskConcentric(glm::vec2 u) {
     }
     return r * glm::vec2(cos(theta), sin(theta));
 }
-#endif
+//#endif
 
 /**
 * Generate PathSegments with rays from the camera through the screen into the
@@ -198,7 +206,7 @@ __host__ __device__ glm::vec2 sampleUniformDiskConcentric(glm::vec2 u) {
 * motion blur - jitter rays "in time"
 * lens effect - jitter ray origin positions based on a lens
 */
-__global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments)
+__global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments, bool useDoF, float lensRadius, float focalDistance)
 {
     int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     int y = (blockIdx.y * blockDim.y) + threadIdx.y;
@@ -211,36 +219,37 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         thrust::uniform_real_distribution<float> u01(0, 1);
 
 
-#if USE_DOF
-        glm::vec3 rayOrigin = cam.position;
+        if (useDoF) {
+            glm::vec3 rayOrigin = cam.position;
 
         
-        glm::vec3 rayDirection = glm::normalize(cam.view
-            - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f + u01(rng))
-            - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f + u01(rng))
-        );
-        glm::vec2 pLens = LENS_RADIUS * sampleUniformDiskConcentric(glm::vec2(u01(rng), u01(rng)));
+            glm::vec3 rayDirection = glm::normalize(cam.view
+                - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f + u01(rng))
+                - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f + u01(rng))
+            );
+            glm::vec2 pLens = lensRadius * sampleUniformDiskConcentric(glm::vec2(u01(rng), u01(rng)));
 
-        // TODO I believe view is the forward vector and is normalized
+            // TODO I believe view is the forward vector and is normalized
         
 
-        float ft = FOCAL_DISTANCE / glm::dot(cam.view, rayDirection); // TODO probably need to change since .z local not world
-        glm::vec3 pFocus = rayOrigin + rayDirection * ft;
+            float ft = focalDistance / glm::dot(cam.view, rayDirection); // TODO probably need to change since .z local not world
+            glm::vec3 pFocus = rayOrigin + rayDirection * ft;
         
-        segment.ray.origin = rayOrigin + pLens.x * cam.right + pLens.y * cam.up;
-        segment.ray.direction = normalize(pFocus - segment.ray.origin);
+            segment.ray.origin = rayOrigin + pLens.x * cam.right + pLens.y * cam.up;
+            segment.ray.direction = normalize(pFocus - segment.ray.origin);
+        }
+        else {
+            segment.ray.origin = cam.position;
+            // TODO: implement antialiasing by jittering the ray
+           // TODO make sure this jitter is right, seems fine at a glance
+
+            segment.ray.direction = glm::normalize(cam.view
+                - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f + u01(rng))
+                - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f + u01(rng))
+            );
+        }
 
 
-#else
-        segment.ray.origin = cam.position;
-        // TODO: implement antialiasing by jittering the ray
-       // TODO make sure this jitter is right, seems fine at a glance
-
-        segment.ray.direction = glm::normalize(cam.view
-            - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f + u01(rng))
-            - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f + u01(rng))
-        );
-#endif
         segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
        
@@ -556,7 +565,7 @@ const bool enableSortingPaths = false; // TODO option to control at runtime?
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
  * of memory management
  */
-void pathtrace(uchar4* pbo, int frame, int iter)
+void pathtrace(uchar4* pbo, int frame, int iter, bool useDoF, float lensRadius, float focalDistance)
 {
     const int traceDepth = hst_scene->state.traceDepth;
     const Camera& cam = hst_scene->state.camera;
@@ -618,7 +627,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
 
 
-    generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths);
+    generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths, useDoF, lensRadius, focalDistance);
     checkCUDAError("generate camera ray");
 
     int depth = 0;
