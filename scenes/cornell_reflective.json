@@ -26,19 +26,8 @@
         {
             "TYPE":"Specular",
             "RGB":[0.98, 0.98, 0.98],
-            "ROUGHNESS":0.0
-        },
-        "diffuse_bright_blue":
-        {
-            "TYPE":"Diffuse",
-            "RGB":[0.35, 0.35, 0.98]
-        },
-        "glass_white":
-        {
-            "TYPE":"Glass",
-            "RGB":[0.98, 0.98, 0.98],
           "ROUGHNESS": 0.0,
-            "ETA":1.55
+            "ETA":1.5
         }
     },
     "Camera":
@@ -96,18 +85,12 @@
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[0.01,10.0,10.0]
         },
-        
         {
-            "TYPE":"gltf",
-            "MATERIAL":"glass_white",
-            "TRANS":[0.0,3.0,0.0],
-            "ROTAT":[0.0,-45.0,0.0],
-            "SCALE":[0.03,0.03,0.03],
-            "FILE": "../scenes/glTF-Samples/duck/Duck.gltf"
+            "TYPE":"sphere",
+            "MATERIAL":"specular_white",
+            "TRANS":[-1.0,4.0,-1.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[3.0,3.0,3.0]
         }
-    ],
-  "Environment": {
-    "COLOR": [ 0.1, 0.2, 0.45 ],
-    "HDR":  "../scenes/hdr/dam_wall_4k.hdr"
-  }
+    ]
 }

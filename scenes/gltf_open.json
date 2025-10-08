@@ -68,7 +68,8 @@
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[10.0,0.01,10.0]
         },
-        {
+
+                {
             "TYPE":"cube",
             "MATERIAL":"diffuse_white",
             "TRANS":[0.0,10.0,0.0],
@@ -76,38 +77,16 @@
             "SCALE":[0.01,10.0,10.0]
         },
         {
-            "TYPE":"cube",
-            "MATERIAL":"diffuse_white",
-            "TRANS":[0.0,5.0,-5.0],
-            "ROTAT":[0.0,90.0,0.0],
-            "SCALE":[0.01,10.0,10.0]
-        },
-        {
-            "TYPE":"cube",
-            "MATERIAL":"diffuse_red",
-            "TRANS":[-5.0,5.0,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[0.01,10.0,10.0]
-        },
-        {
-            "TYPE":"cube",
-            "MATERIAL":"diffuse_green",
-            "TRANS":[5.0,5.0,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[0.01,10.0,10.0]
-        },
-        
-        {
             "TYPE":"gltf",
             "MATERIAL":"glass_white",
-            "TRANS":[0.0,3.0,0.0],
+            "TRANS":[0.0,4.0,0.0],
             "ROTAT":[0.0,-45.0,0.0],
-            "SCALE":[0.03,0.03,0.03],
+            "SCALE":[0.02,0.02,0.02],
             "FILE": "../scenes/glTF-Samples/duck/Duck.gltf"
         }
     ],
   "Environment": {
     "COLOR": [ 0.1, 0.2, 0.45 ],
-    "HDR":  "../scenes/hdr/dam_wall_4k.hdr"
+    "HDR": "../scenes/hdr/dam_wall_4k.hdr"
   }
 }

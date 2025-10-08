@@ -17,6 +17,7 @@
 #include "interactions.h"
 
 #define ERRORCHECK 1
+#define DISABLE_COMPACT 0
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -152,6 +153,8 @@ void pathtraceClear(Scene* scene) {
     checkCUDAError("pathtraceClear");
 }
 
+
+
 void pathtraceFree()
 {
     cudaFree(dev_image);  // no-op if dev_image is null
@@ -282,7 +285,11 @@ __global__ void computeIntersections(
     if (path_index < num_paths)
     {
         PathSegment pathSegment = pathSegments[path_index];
-
+//#if DISABLE_COMPACT
+        if (pathSegment.remainingBounces <= 0) {
+            return;
+        }
+//#endif
         float t;
         glm::vec3 intersect_point;
         glm::vec3 normal;
@@ -474,6 +481,11 @@ __global__ void shadeMaterial(
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < num_paths)
     {
+//#if DISABLE_COMPACT
+        if (pathSegments[idx].remainingBounces <= 0) {
+            return;
+        }
+//#endif
         ShadeableIntersection intersection = shadeableIntersections[idx];
         if (intersection.t > 0.0f) // if the intersection exists...
         {
@@ -562,12 +574,63 @@ struct materialOrder {
 
 const bool enableSortingPaths = false; // TODO option to control at runtime?
 
+
+
+float generateRayTime = 0.f;
+float moveTime = 0.f;
+float totalTime = 0.f;
+float computeIntersectionsTime = 0.f;
+float shadeMaterialTime = 0.f;
+float sortTime = 0.f;
+
+float computeIntersections6Time = 0.f;
+float shadeMaterial6Time = 0.f;
+float sort6Time = 0.f;
+
+float computeIntersections5Time = 0.f;
+float shadeMaterial5Time = 0.f;
+float sort5Time = 0.f;
+
+float rayCount5 = 0.f;
+float rayCount6 = 0.f;
+
+int timeIterations = 500;
+void printTimes()
+{
+    std::cout << "Total time (ms),Generate ray time (ms),Keyframe update time (ms),Total Compute intersections time (ms),Total Shade material time (ms),Total Sort/compact time (ms),"
+        << "Depth 5 Compute intersections time (ms),Depth 5 Shade material time (ms),Depth 5 Sort/compact time (ms),"
+        << "Depth 5 Starting ray count," 
+        << "Depth 6 Compute intersections time (ms),Depth 6 Shade material time (ms),Depth 6 Sort/compact time (ms),"
+        << "Depth 6 Starting ray count" << std::endl;
+    std::cout << totalTime / timeIterations << ",";
+    std::cout << generateRayTime / timeIterations << ",";
+    std::cout << moveTime / timeIterations << ",";
+    std::cout << computeIntersectionsTime / timeIterations << ",";
+    std::cout << shadeMaterialTime / timeIterations << ",";
+    std::cout << sortTime / timeIterations << ",";
+    std::cout << computeIntersections5Time / timeIterations << ",";
+    std::cout << shadeMaterial5Time / timeIterations << ",";
+    std::cout << sort5Time / timeIterations << ",";
+    std::cout << rayCount5 / timeIterations << ",";
+    std::cout << computeIntersections6Time / timeIterations << ",";
+    std::cout << shadeMaterial6Time / timeIterations << ",";
+    std::cout << sort6Time / timeIterations << ",";
+    std::cout << rayCount6 / timeIterations << std::endl;
+}
+
+
+
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
  * of memory management
  */
 void pathtrace(uchar4* pbo, int frame, int iter, bool useDoF, float lensRadius, float focalDistance)
 {
+    PerformanceTimer timer = PerformanceTimer();
+    PerformanceTimer timer2 = PerformanceTimer();
+    
+    timer2.startGpuTimer();
+
     const int traceDepth = hst_scene->state.traceDepth;
     const Camera& cam = hst_scene->state.camera;
     const int pixelcount = cam.resolution.x * cam.resolution.y;
@@ -612,8 +675,8 @@ void pathtrace(uchar4* pbo, int frame, int iter, bool useDoF, float lensRadius, 
 
     // TODO: perform one iteration of path tracing
     //std::cout << iter << std::endl;
-
     if (hst_scene->minT != hst_scene->maxT) {
+        timer.startGpuTimer();
         thrust::default_random_engine rng = makeSeededRandomEngine(iter, iter, iter);
         thrust::uniform_real_distribution<float> u01(hst_scene->minT, hst_scene->maxT);
         float frameTime = u01(rng);
@@ -632,10 +695,16 @@ void pathtrace(uchar4* pbo, int frame, int iter, bool useDoF, float lensRadius, 
 
         cudaMemcpy(dev_triIdx, hst_scene->triIdx.data(), hst_scene->triIdx.size() * sizeof(unsigned int), cudaMemcpyHostToDevice);
 
+        timer.endGpuTimer();
+        moveTime += timer.getGpuElapsedTimeForPreviousOperation();
     }
 
 
+
+    timer.startGpuTimer();
     generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths, useDoF, lensRadius, focalDistance);
+    timer.endGpuTimer();
+    generateRayTime += timer.getGpuElapsedTimeForPreviousOperation();
     checkCUDAError("generate camera ray");
 
     int depth = 0;
@@ -645,6 +714,7 @@ void pathtrace(uchar4* pbo, int frame, int iter, bool useDoF, float lensRadius, 
     // --- PathSegment Tracing Stage ---
     // Shoot ray into scene, bounce between objects, push shading chunks
 
+    //dev_path_end = dev_paths + 6400;
     bool iterationComplete = false;
     while (!iterationComplete)
     {
@@ -652,7 +722,9 @@ void pathtrace(uchar4* pbo, int frame, int iter, bool useDoF, float lensRadius, 
         cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
         // tracing
-        dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
+        dim3 numblocksPathSegmentTracing = (dev_path_end - dev_paths + blockSize1d - 1) / blockSize1d;
+        //std::cout << dev_path_end - dev_paths << std::endl;
+        timer.startGpuTimer();
         computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>> (
             depth,
             dev_path_end - dev_paths,
@@ -669,7 +741,19 @@ void pathtrace(uchar4* pbo, int frame, int iter, bool useDoF, float lensRadius, 
         );
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();
+        timer.endGpuTimer();
+        computeIntersectionsTime += timer.getGpuElapsedTimeForPreviousOperation();
+
         ++depth;
+        if (depth == 5) {
+            computeIntersections5Time += timer.getGpuElapsedTimeForPreviousOperation();
+        }
+        if (depth == 6) {
+            computeIntersections6Time += timer.getGpuElapsedTimeForPreviousOperation();
+        }
+
+
+        //std::cout << timer.getGpuElapsedTimeForPreviousOperation() << std::endl;
 
         // TODO:
         // --- Shading Stage ---
@@ -681,6 +765,7 @@ void pathtrace(uchar4* pbo, int frame, int iter, bool useDoF, float lensRadius, 
         // path segments that have been reshuffled to be contiguous in memory.
 
         //shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
+        timer.startGpuTimer();
         shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
             iter,
             dev_path_end - dev_paths,
@@ -691,11 +776,33 @@ void pathtrace(uchar4* pbo, int frame, int iter, bool useDoF, float lensRadius, 
             hst_scene->envWidth,
             hst_scene->envHeight
         );
+        timer.endGpuTimer();
+        shadeMaterialTime += timer.getGpuElapsedTimeForPreviousOperation();
+        if (depth == 5) {
+            shadeMaterial5Time += timer.getGpuElapsedTimeForPreviousOperation();
+        }
+        if (depth == 6) {
+            shadeMaterial6Time += timer.getGpuElapsedTimeForPreviousOperation();
+        }
+
         //thrust::device_vector
         // 
         // TODO include reshuffle option here? should enabling that be a compile-time option or run-time?
         // TODO do I need to do this before partition? since intersections I assume lines up with paths before partition?
             // but if I do it here then needs stable partition... is there a way to get material ids after? should I store in pathsegments?
+
+        
+        if (depth == 5) {
+            rayCount5 += (float)(dev_path_end - dev_paths);
+        }
+        if (depth == 6) {
+            rayCount6 += (float)(dev_path_end - dev_paths);
+        }
+#if DISABLE_COMPACT
+        iterationComplete = depth >= 8;
+#else
+        //timer.startGpuTimer();
+        
         if (enableSortingPaths) {
             // TODO
             // This approach is slower, I assume with the extra work of (1) needing a stable partition algorithm and (2) sorting the already-finished paths; going to try storing material ID in paths and sorting after partition
@@ -714,9 +821,19 @@ void pathtrace(uchar4* pbo, int frame, int iter, bool useDoF, float lensRadius, 
             dev_path_end = thrust::partition(thrust::device, dev_paths, dev_path_end, bouncesRemaining());
 
         }
+        //timer.endGpuTimer();
+        //sortTime += timer.getGpuElapsedTimeForPreviousOperation();
+        //if (depth == 5) {
+        //    sort5Time += timer.getGpuElapsedTimeForPreviousOperation();
+        //}
+        //if (depth == 6) {
+        //    sort6Time += timer.getGpuElapsedTimeForPreviousOperation();
+        //}
 
-       
+        
         iterationComplete = (dev_path_end - dev_paths) <= 0;
+        iterationComplete = depth >= 8;
+#endif
         
 
         
@@ -728,6 +845,9 @@ void pathtrace(uchar4* pbo, int frame, int iter, bool useDoF, float lensRadius, 
             guiData->TracedDepth = depth;
         }
     }
+
+    
+
 
     //num_paths = dev_path_end - dev_paths;
 
@@ -743,6 +863,12 @@ void pathtrace(uchar4* pbo, int frame, int iter, bool useDoF, float lensRadius, 
     // Retrieve image from GPU
     cudaMemcpy(hst_scene->state.image.data(), dev_image,
         pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+
+    timer2.endGpuTimer();
+    totalTime += timer2.getGpuElapsedTimeForPreviousOperation();
+    if (iter == timeIterations - 1) {
+        printTimes();
+    }
 
     checkCUDAError("pathtrace");
 }

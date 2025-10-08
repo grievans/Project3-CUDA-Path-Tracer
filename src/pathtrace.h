@@ -9,3 +9,5 @@ void pathtraceInit(Scene *scene);
 void pathtraceFree();
 void pathtrace(uchar4 *pbo, int frame, int iteration, bool useDoF, float lensRadius, float focalDistance);
 void pathtraceClear(Scene* scene);
+
+void printTimes();
