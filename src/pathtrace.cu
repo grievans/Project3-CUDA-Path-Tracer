@@ -348,6 +348,7 @@ __global__ void computeIntersections(
         if (triangles_size > 0 ) {
         //if (triangles_size > 0 && depth <= 1) {
 
+            // realized this should also probably pass in the existing t_min so can terminate early but not changing for now since past deadline
             int triIndex;
             t = intersectBVH(pathSegment.ray, bvhNodes, 0,
                 triangles, triIdx,

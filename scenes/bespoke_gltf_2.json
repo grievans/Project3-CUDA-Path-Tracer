@@ -1,0 +1,158 @@
+{
+    "Materials":
+    {
+        "light":
+        {
+            "TYPE":"Emitting",
+            "RGB":[1.0, 1.0, 1.0],
+            "EMITTANCE":5.0
+        },
+        "diffuse_white":
+        {
+            "TYPE":"Diffuse",
+            "RGB":[0.98, 0.98, 0.98]
+        },
+        "diffuse_red":
+        {
+            "TYPE":"Diffuse",
+            "RGB":[0.85, 0.35, 0.35]
+        },
+        "diffuse_green":
+        {
+            "TYPE":"Diffuse",
+            "RGB":[0.35, 0.85, 0.35]
+        },
+        "diffuse_yellow":
+        {
+            "TYPE":"Diffuse",
+            "RGB":[0.95, 0.95, 0.35]
+        },
+        "specular_white":
+        {
+            "TYPE":"Specular",
+            "RGB":[0.98, 0.98, 0.98],
+            "ROUGHNESS":0.0
+        },
+        "specular_gray":
+        {
+            "TYPE":"Specular",
+            "RGB":[0.9, 0.9, 0.9],
+            "ROUGHNESS":0.0
+        },
+        "specular_greenish":
+        {
+            "TYPE":"Specular",
+            "RGB":[0.35, 0.5, 0.35],
+            "ROUGHNESS":0.0
+        },
+        "specular_blue":
+        {
+            "TYPE":"Specular",
+            "RGB":[0.35, 0.35, 0.85],
+            "ROUGHNESS":0.0
+        },
+        "diffuse_gray":
+        {
+            "TYPE":"Diffuse",
+            "RGB":[0.8, 0.8, 0.8]
+        },
+        "diffuse_brown":
+        {
+            "TYPE":"Diffuse",
+            "RGB":[0.3, 0.2, 0.1]
+        },
+        "diffuse_blue":
+        {
+            "TYPE":"Diffuse",
+            "RGB":[0.35, 0.35, 0.85]
+        },
+        "glass_white":
+        {
+            "TYPE":"Glass",
+            "RGB":[0.98, 0.98, 0.98],
+          "ROUGHNESS": 0.0,
+            "ETA":1.55
+        }
+    },
+    "Camera":
+    {
+        "RES":[800,800],
+        "FOVY":45.0,
+        "ITERATIONS":5000,
+        "DEPTH":8,
+        "FILE":"bespokeScene",
+        "EYE":[7.5,4.0,-7.5],
+        "LOOKAT":[0.0,10.0,0.0],
+        "UP":[0.0,1.0,0.0]
+    },
+    "Objects":
+    [
+        {   "TYPE":"gltf",
+            "MATERIAL":"diffuse_gray",
+            "FILE": "../scenes/glTF/mug.glb",
+            "TRANS":[0.0,7.5,0.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[1,1,1]
+        },
+        {
+            "TYPE":"gltf",
+            "MATERIAL":"diffuse_brown",
+            "FILE": "../scenes/glTF/mersonClimbingA1.glb",
+            "TRANS":[1.0,13.0,-5.7],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[2,2,2]
+        },
+        {
+         
+            "TYPE":"gltf",
+            "MATERIAL":"specular_blue",
+            "FILE": "../scenes/glTF/mersonClimbingA2.glb",
+            "TRANS":[1.0,13.0,-5.7],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[2,2,2]
+        },
+        {
+         
+            "TYPE":"gltf",
+            "MATERIAL":"diffuse_blue",
+            "FILE": "../scenes/glTF/sideBookA.glb",
+            "TRANS":[0.0,-1.0,0.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[1,1,1]
+        },        
+        { 
+            "TYPE":"gltf",
+            "MATERIAL":"diffuse_yellow",
+            "FILE": "../scenes/glTF/pencilA1.glb",
+            "TRANS":[0.0,8.0,0.76],
+            "ROTAT":[30.0,0.0,180.0],
+            "SCALE":[1,1,1]
+        },
+        {
+            "TYPE":"gltf",
+            "MATERIAL":"specular_greenish",
+            "FILE": "../scenes/glTF/pencilA2.glb",
+            "TRANS":[0.0,15.0,4.81],
+            "ROTAT":[30.0,0.0,180.0],
+            "SCALE":[1,1,1]
+        },
+        { 
+            "TYPE":"gltf",
+            "MATERIAL":"diffuse_yellow",
+            "FILE": "../scenes/glTF/pencilA1.glb",
+            "TRANS":[0.75,10.0,1.21],
+            "ROTAT":[30.0,0.0,-15.0],
+            "SCALE":[1,1,1]
+        },
+        {
+            "TYPE":"cube",
+            "MATERIAL":"diffuse_white",
+            "TRANS":[0.0,-4.0,0.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[50.0,0.01,50.0]
+        }
+    ],
+  "Environment": {
+    "HDR": "../scenes/hdr/industrial_sunset_02_puresky_4k.hdr"
+  }
+}
