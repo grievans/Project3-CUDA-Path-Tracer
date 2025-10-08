@@ -4,7 +4,7 @@ CUDA Path Tracer
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3**
 
 * (TODO) YOUR NAME HERE
-* Tested on: (TODO) Windows 22, i7-2222 @ 2.22GHz 22GB, GTX 222 222MB (Moore 2222 Lab)
+* Tested on: Windows 11 Education, i9-12900F @ 2.40GHz 64.0GB, NVIDIA GeForce RTX 3090 (Levine 057 SIGLAB-02 (though marked 3 on the label))
 
 ![](img/bespokeScene.2025-10-08_00-54-20z.5000samp.png)
 ![](img/bespokeScene.2025-10-07_23-56-20z.425samp.png)
@@ -12,18 +12,26 @@ CUDA Path Tracer
 
 ## Features and Analysis
 
-TODO plots for each once done with tests on lab desktop
+### Reflection and Refraction with Fresnel effects
 
-### Refraction with Fresnel effects
-### Physically-based depth-of-field
 ### Motion blur
 
 ![](img/chessDuck.2025-10-05_23-46-18z.397samp.png)
 
-### Russian roulette path termination
 ### Arbitrary mesh rendering via glTF
 ### BVH spatial data structure
 ### Environment mapping
+
+### Physically-based depth-of-field
+
+
+### Stream Compaction
+
+### Material Sorting
+
+### Russian roulette path termination
+
+
 
 ## Third Party Sources
 I made use of the [tinygltf library](https://github.com/syoyo/tinygltf/) as suggested in order to load in model data from glTF files. I feel I should note I did look at Ruipeng Wang's code from last year in regards to using the aforementioned tinygltf library when I was talking with him in office hours about trying to fix a bug I was having with loading the vertex indices.
