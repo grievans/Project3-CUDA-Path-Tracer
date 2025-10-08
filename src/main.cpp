@@ -59,7 +59,7 @@ GuiDataContainer* imguiData = NULL;
 ImGuiIO* io = nullptr;
 bool mouseOverImGuiWinow = false;
 
-bool useDoF = true;
+bool useDoF = false;
 float lensRadius = 0.05f;
 float focalDistance = 3.f;
 bool lastUseDoF = true;

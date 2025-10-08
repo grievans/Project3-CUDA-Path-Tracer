@@ -594,7 +594,7 @@ float sort5Time = 0.f;
 float rayCount5 = 0.f;
 float rayCount6 = 0.f;
 
-int timeIterations = 500;
+int timeIterations = 20;
 void printTimes()
 {
     std::cout << "Total time (ms),Generate ray time (ms),Keyframe update time (ms),Total Compute intersections time (ms),Total Shade material time (ms),Total Sort/compact time (ms),"
@@ -801,7 +801,7 @@ void pathtrace(uchar4* pbo, int frame, int iter, bool useDoF, float lensRadius, 
 #if DISABLE_COMPACT
         iterationComplete = depth >= 8;
 #else
-        //timer.startGpuTimer();
+        timer.startGpuTimer();
         
         if (enableSortingPaths) {
             // TODO
@@ -821,18 +821,17 @@ void pathtrace(uchar4* pbo, int frame, int iter, bool useDoF, float lensRadius, 
             dev_path_end = thrust::partition(thrust::device, dev_paths, dev_path_end, bouncesRemaining());
 
         }
-        //timer.endGpuTimer();
-        //sortTime += timer.getGpuElapsedTimeForPreviousOperation();
-        //if (depth == 5) {
-        //    sort5Time += timer.getGpuElapsedTimeForPreviousOperation();
-        //}
-        //if (depth == 6) {
-        //    sort6Time += timer.getGpuElapsedTimeForPreviousOperation();
-        //}
+        timer.endGpuTimer();
+        sortTime += timer.getGpuElapsedTimeForPreviousOperation();
+        if (depth == 5) {
+            sort5Time += timer.getGpuElapsedTimeForPreviousOperation();
+        }
+        if (depth == 6) {
+            sort6Time += timer.getGpuElapsedTimeForPreviousOperation();
+        }
 
         
         iterationComplete = (dev_path_end - dev_paths) <= 0;
-        iterationComplete = depth >= 8;
 #endif
         
 

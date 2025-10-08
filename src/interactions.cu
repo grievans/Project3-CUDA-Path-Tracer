@@ -89,7 +89,7 @@ __host__ __device__ glm::vec3 vecRefract(const glm::vec3& I, const glm::vec3& N,
 
 #define PDF_EPSILON 0.0001f
 #define RAY_EPSILON 0.0001f
-#define ROULETTE_THRESHOLD 0.01f
+#define ROULETTE_THRESHOLD 0.1f
 #define ROULETTE_ON 1
 // TODO figure out good epsilons; IDK why I have issues for 0.001f step along distance
 __host__ __device__ void scatterRay(
