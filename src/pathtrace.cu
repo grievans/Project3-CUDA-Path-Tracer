@@ -802,7 +802,8 @@ void pathtrace(uchar4* pbo, int frame, int iter, bool useDoF, float lensRadius, 
         iterationComplete = depth >= 8;
 #else
         timer.startGpuTimer();
-        
+
+// remark: just realized did I mean this to sort before the previous kernel? probably but can't change right now
         if (enableSortingPaths) {
             // TODO
             // This approach is slower, I assume with the extra work of (1) needing a stable partition algorithm and (2) sorting the already-finished paths; going to try storing material ID in paths and sorting after partition
