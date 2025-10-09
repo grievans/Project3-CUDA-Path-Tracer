@@ -127,13 +127,20 @@ These features add overhead to each iteartion however, which for relatively simp
 
 <img width="500" height="1318" alt="Average kernel run times per frame for bell model in closed scene with and without stream compaction and material sorting (lower is better) (1)" src="https://github.com/user-attachments/assets/d0fc8c51-8ea9-47a1-8b91-fb0b4886e2dc" />
 
-In a closed scene we see very little change between methods, as the ray very rarely terminates. The complex open scene shown here however showcases very odd behavior, as it appears to perform significantly worse with stream compaction despite smaller scenes seeing benefits from it. My best estimation is that this has to do with the array being rearranged, somehow causing more erratic behavior between the paths adjacent to each other in memory.
+In a closed scene we see very little change between methods, as the ray very rarely terminates. The complex open scene shown here however showcases very odd behavior, as it appears to perform significantly worse with stream compaction despite smaller scenes seeing benefits from it. My best estimation is that this has to do with the array being rearranged, somehow causing more erratic behavior between the paths adjacent to each other in warps such that they access memory or branch in a very inefficient way.
+
+A potential optimization for material sorting would be to pre-calculate random values used in the next iteration. For example, in the reflective-refractive material used here we have a 50% chance of using either reflection or refraction, with each leading to a different branch of code. If we stored the value used for this chance in advance, we could account for it in our sorting and hence have many more warps that entirely reside within one of the two branches.
+
+While the benefits of compacting would be present in a CPU implementation, as we'd still be iterating over fewer elements in each step, material sorting is only really relevant to the GPU, as it serves to avoid performance issues particular to its parallelism.
 
 ### Russian roulette path termination
 <img width="500" height="1660" alt="Average kernel run times per frame for closed bell scene with varying roulette thresholds (lower is better)" src="https://github.com/user-attachments/assets/a6c695d8-c5b5-4cb9-97de-db91d72de84c" />
 
 We add an additional means for paths to terminate: when the magnitude of its color is below some threshold, we give it a random chance to terminate early, and if it doesn't then we multiply its color value. this results in the results appearing the same on average, while spending less time on paths that don't particularly impact the result. The benefits of this grow as the threshold is increased, here showing a noticeable improvement when tried on colors less than 0.1 in magnitude, with each example here using a 25% chance to terminate.
 
+This is another technique which would also be of great benefit to a hypothetical CPU implementation, as it still reduces the amount of paths we have to perform operations on regardless of whether those paths are parallelized.
+
+The main room for optimization would be further investigation of a variety of thresholds and termination chances, in order to see what maximizes the performance benefit without producing noticeable changes in per-frame render quality. It is possible that these values may need to be tuned depending on particular scenes, as the amount of light present could vary drastically.
 
 ## Third Party Sources
 I made use of the [tinygltf library](https://github.com/syoyo/tinygltf/) as suggested in order to load in model data from glTF files. I feel I should note I did look at Ruipeng Wang's code from last year in regards to using the aforementioned tinygltf library when I was talking with him in office hours about trying to fix a bug I was having with loading the vertex indices.
