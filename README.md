@@ -58,7 +58,7 @@ CUDA Path Tracer
 <img width="330" height="330" alt="cornell 2025-10-08_20-35-04z 2307samp" src="https://github.com/user-attachments/assets/e1616818-617f-44e4-87bd-d4df7446478c" />
 <img width="330" height="330" alt="cornell 2025-10-08_20-35-47z 3842samp" src="https://github.com/user-attachments/assets/447b938c-dad4-4c85-aad7-4ae7ab6aeb50" />
 
-<img width="1000" height="979" alt="Average run time per frame of shadeMaterial kernel for varying background environments (ms; lower is better)" src="https://github.com/user-attachments/assets/c4c9f7c8-2d35-4357-8e13-9418388cac20" />
+<img width="750" height="979" alt="Average run time per frame of shadeMaterial kernel for varying background environments (ms; lower is better)" src="https://github.com/user-attachments/assets/c4c9f7c8-2d35-4357-8e13-9418388cac20" />
 
 
 
@@ -66,10 +66,18 @@ CUDA Path Tracer
 <img width="330" height="330" alt="cornell 2025-10-08_20-35-47z 3842samp" src="https://github.com/user-attachments/assets/afa056f0-5f21-4dca-8b3a-f0e39b25f894" />
 <img width="330" height="330" alt="bespokeScene 2025-10-07_23-56-20z 3718samp" src="https://github.com/user-attachments/assets/7b8feecf-f994-4088-8935-c2a523901a39" />
 <img width="330" height="330" alt="bespokeScene 2025-10-08_20-22-42z 38samp" src="https://github.com/user-attachments/assets/a39a4af4-91bf-4211-b23e-40d3c3bdc39e" />
-<img width="750" height="1154" alt="Average kernel run times per frame (summed over all depths) for Cornell box scene with and without stream compaction and material sorting (lower is better)" src="https://github.com/user-attachments/assets/ab13f518-20fa-47e2-bcf7-1a03f99e225c" />
-<img width="750" height="931" alt="Average kernel run times for Cornell box scene at depth 5 and 6 with and without compaction and sorting" src="https://github.com/user-attachments/assets/b17f3fbe-0cac-49ed-b7ab-19944fdefa08" />
+
+<img width="500" height="1154" alt="Average kernel run times per frame (summed over all depths) for Cornell box scene with and without stream compaction and material sorting (lower is better) (1)" src="https://github.com/user-attachments/assets/d5e23180-e55c-44d7-a4bf-765bf4ae99b5" />
+
+<img width="500" height="931" alt="Average kernel run times for Cornell box scene at depth 5 and 6 with and without compaction and sorting (1)" src="https://github.com/user-attachments/assets/5017d7c7-a117-4f57-8f5d-711ba69cf013" />
+
+<img width="500" height="1660" alt="Average kernel run times per frame for bell model in open scene with and without stream compaction and material sorting (lower is better) (1)" src="https://github.com/user-attachments/assets/2387c62a-3ad5-4482-8833-4c6e0790cfed" />
+
+
+<img width="500" height="1318" alt="Average kernel run times per frame for bell model in closed scene with and without stream compaction and material sorting (lower is better) (1)" src="https://github.com/user-attachments/assets/d0fc8c51-8ea9-47a1-8b91-fb0b4886e2dc" />
 
 ### Russian roulette path termination
+<img width="2064" height="1660" alt="Average kernel run times per frame for closed bell scene with varying roulette thresholds (lower is better)" src="https://github.com/user-attachments/assets/a6c695d8-c5b5-4cb9-97de-db91d72de84c" />
 
 
 
